@@ -28,5 +28,10 @@ You can install the development version of minhub like so:
 remotes::install_github("mlverse/minhub")
 ```
 
+Note:
+
+- dev versions of torch, tok and hfhub are required
+- [tok](https://github.com/mlverse/tok) requires a Rust installation. See installation instructions in its repository.
+
 ## Examples
 
