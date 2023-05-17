@@ -1,0 +1,31 @@
+Package: minhub
+Title: Minimal Deep Learning Model Implementations
+Version: 0.0.0.9000
+Authors@R: c(
+    person("Daniel", "Falbel", , "daniel@posit.co", role = c("aut", "cre")),
+    person(family = "Posit", role = c("cph"))
+    )
+Description: A collection of minimal implementations of deep learning
+    models. Clean and readable code prioritizing simplicity and understanding 
+    over speed optimization.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
+Suggests: 
+    testthat (>= 3.0.0)
+Depends:
+    R (>= 4.1.0)
+Config/testthat/edition: 3
+Imports: 
+    cli,
+    hfhub,
+    purrr,
+    rlang,
+    tok,
+    torch (>= 0.10.0),
+    zeallot
+Remotes:
+    mlverse/torch,
+    mlverse/tok,
+    mlverse/hfhub
