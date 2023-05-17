@@ -20,6 +20,13 @@ implementations.
 Additionally, minhub supports loading weights from pre-trained models
 available in the Hugging Face model hub.
 
+## Models
+
+minhub currently implements:
+
+- [GPT-NeoX-20B: An Open-Source Autoregressive Language Model](https://arxiv.org/abs/2204.06745): [🤗gpt_neox](https://huggingface.co/models?other=gpt_neox), [📄gptneox.R](./R/gptneox.R)
+- [SantaCoder: don't reach for the stars!](https://arxiv.org/abs/2301.03988): [🤗gpt_bigcode](https://huggingface.co/models?other=gpt_bigcode), [📄gptbigcode.R](./R/gptbigcode.R)
+
 ## Installation
 
 You can install the development version of minhub like so:
