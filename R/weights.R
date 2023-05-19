@@ -26,9 +26,8 @@ hf_state_dict <- function(identifier, revision = "main") {
     }, error = function(e) {
       cli::cli_abort(c(
         x = "Error downloading weights from {.val {c(WEIGHTS_NAME(), WEIGHTS_INDEX_NAME())}}",
-        i = "Traceback below shows the error when trying to download {.val {WEIGHTS_NAME()}}",
-        parent = err
-      ))
+        i = "Traceback below shows the error when trying to download {.val {WEIGHTS_NAME()}}"
+      ), parent = err)
     })
 
     filenames <- unique(unlist(jsonlite::fromJSON(index_path)$weight_map))
