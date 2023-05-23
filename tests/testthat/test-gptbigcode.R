@@ -5,7 +5,7 @@ test_that("default model nparam", {
   expect_equal(n_parameters, 150044160)
 })
 
-test_that("multiplication works", {
+test_that("can run bigcode", {
   identifier <- "bigcode/gpt_bigcode-santacoder"
   # 150044160
   model <- gptbigcode_from_pretrained(identifier)
