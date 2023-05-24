@@ -28,7 +28,8 @@ nn_new_gelu <- nn_module(
 
 # Following @Karpathy. See @Huggingface for an alternative implementation.
 nn_gpt2_attention <- nn_module(
-  initialize = function(n_embd, n_head, n_positions, attn_pdrop, resid_pdrop) {
+  initialize = function(n_embd, n_head, n_layer, n_positions, resid_pdrop,
+                        attn_pdrop, initializer_range) {
     self$n_head = n_head
     self$n_embd = n_embd
     # key, query, value projections for all heads, but in a batch
@@ -41,6 +42,10 @@ nn_gpt2_attention <- nn_module(
     # causal mask to ensure that attention is only applied to the left in the input sequence
     self$register_buffer("bias", torch_tril(torch_ones(n_positions, n_positions))$view(c(1, 1, n_positions, n_positions)))
 
+    nn_init_normal_(self$c_attn$weight, mean = 0, std = initializer_range)
+    nn_init_zeros_(self$fc_attn$bias)
+    nn_init_normal_(self$c_proj$weight, mean = 0, std = initializer_range/sqrt(2 * n_layer))
+    nn_init_zeros_(self$c_proj$bias)
   },
   forward = function(x) {
     # batch size, sequence length, embedding dimensionality (n_embd)
@@ -67,11 +72,16 @@ nn_gpt2_attention <- nn_module(
 )
 
 nn_gpt2_mlp <- nn_module(
-  initialize = function(n_embd, resid_pdrop) {
+  initialize = function(n_embd, resid_pdrop, initializer_range) {
     self$c_fc <- nn_linear(n_embd, 4 * n_embd)
     self$proj <- nn_linear(4 * n_embd, n_embd)
     self$act <- nn_new_gelu()
     self$dropout <- nn_dropout(resid_pdrop)
+
+    nn_init_normal_(self$c_fc$weight, mean = 0, std = initializer_range)
+    nn_init_zeros_(self$c_fc$bias)
+    nn_init_normal_(self$proj$weight, mean = 0, std = initializer_range)
+    nn_init_zeros_(self$proj$bias)
   },
   forward = function(x) {
     x |>
@@ -83,15 +93,22 @@ nn_gpt2_mlp <- nn_module(
 )
 
 nn_gpt2_transformer_block <- nn_module(
-  initialize = function(n_embd, n_head, n_positions, attn_pdrop, resid_pdrop, layer_norm_epsilon) {
+  initialize = function(n_embd, n_head, n_layer, n_positions, resid_pdrop, attn_pdrop,
+                        layer_norm_epsilon, initializer_range) {
     self$ln_1 <- nn_layer_norm(n_embd, layer_norm_epsilon)
-    self$attn <- nn_gpt2_attention(n_embd, n_head, n_positions, attn_pdrop, resid_pdrop)
+    self$attn <- nn_gpt2_attention(n_embd, n_head, n_layer, n_positions, resid_pdrop, attn_pdrop,
+                                   initializer_range)
     self$ln_2 <- nn_layer_norm(n_embd, layer_norm_epsilon)
     # Daniel do you know why karpathy uses module_dict?
     # https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L81
     # also wondering about this line
     # https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L88
     self$mlp <- nn_gpt2_mlp(n_embd, resid_pdrop)
+
+    nn_init_zeros_(self$ln_1$bias)
+    nn_init_ones_(self$ln_1$weight)
+    nn_init_zeros_(self$ln_2$bias)
+    nn_init_ones_(self$ln_2$weight)
   },
   forward = function(x) {
     x + self$attn(self$ln_1(x)) + self$mlp(self$ln_2(x))
@@ -107,12 +124,24 @@ nn_gpt2_model <- nn_module(
      drop = nn_dropout(embd_pdrop),
      h = nn_sequential(
        !!!1:n_layer |>
-         map(\(x) nn_gpt2_transformer_block(n_embd, n_head, n_positions, attn_pdrop, resid_pdrop, layer_norm_epsilon))),
+         map(\(x) nn_gpt2_transformer_block(n_embd, n_head, n_layer, n_positions, resid_pdrop, attn_pdrop, layer_norm_epsilon, initializer_range))),
      ln_f = nn_layer_norm(n_embd, layer_norm_epsilon)
-    ))
+     ))
     self$lm_head <- nn_linear(n_embd, vocab_size, bias = FALSE)
-    self$init_weights(self, initializer_range, n_layer)
-    # names(module$named_parameters()) == names(module$parameters)
+
+    nn_init_normal_(self$transformer$wte$weight, mean = 0, std = initializer_range)
+    nn_init_normal_(self$transformer$wte$weight, mean = 0, std = initializer_range)
+    nn_init_zeros_(self$transformer$ln_f$bias)
+    nn_init_ones_(self$transformer$ln_f$weight)
+    nn_init_normal_(self$lm_head$weight, mean = 0, std = initializer_range)
+    nn_init_zeros_(self$lm_head$bias)
+    for (i in 1:length(self$named_parameters())) {
+      pn <- names(module$named_parameters()[i])
+      if (grepl("c_proj.weight", pn)) {
+        browser()
+        nn_init_normal_(p, mean = 0, std = initializer_range/sqrt(2 * n_layer))
+      }
+    }
   },
   forward = function(x) {
     tok_emb <- self$transformer$wte(x) # token embeddings of shape (b, t, n_embd)
@@ -124,29 +153,6 @@ nn_gpt2_model <- nn_module(
     x <- self$transformer$ln_f(x)
     x <- self$lm_head(x)
     x
-  },
-  init_weights = function(module, initializer_range, n_layer) {
-    module_class <- class(module)[1]
-    browser()
-    if (module_class == "nn_linear") {
-      browser()
-      nn_init_normal_(module$weight, mean = 0, std = initializer_range)
-      if (!is.null(module$bias)) nn_init_zeros_(module$bias)
-    } else if (module_class == "nn_embedding") {
-      browser()
-      nn_init_normal_(module$weight, mean = 0, std = initializer_range)
-    } else if (module_class == "nn_layer_norm") {
-      browser()
-      nn_init_zeros_(module$bias)
-      nn_init_ones_(module$weight)
-    }
-    for (i in 1:length(module$named_parameters())) {
-      pn <- names(module$named_parameters()[i])
-      if (grepl("c_proj.weight", pn)) {
-        browser()
-        nn_init_normal_(p, mean = 0, std = initializer_range/sqrt(2 * n_layer))
-      }
-    }
   }
 )
 
