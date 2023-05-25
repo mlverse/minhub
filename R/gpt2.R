@@ -11,8 +11,12 @@
 # what about the generate function? https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L283
 # what about these different sizes: https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L126
 
-# TBD remap??
+# TBD remap (lm_head has no counterpart - took from neox)
 # TBD test weight init
+# tbd tokenizer
+
+
+
 
 #' @noRd
 #' @importFrom zeallot %<-%
@@ -43,7 +47,7 @@ nn_gpt2_attention <- nn_module(
     self$register_buffer("bias", torch_tril(torch_ones(n_positions, n_positions))$view(c(1, 1, n_positions, n_positions)))
 
     nn_init_normal_(self$c_attn$weight, mean = 0, std = initializer_range)
-    nn_init_zeros_(self$fc_attn$bias)
+    nn_init_zeros_(self$c_attn$bias)
     nn_init_normal_(self$c_proj$weight, mean = 0, std = initializer_range/sqrt(2 * n_layer))
     nn_init_zeros_(self$c_proj$bias)
   },
@@ -103,7 +107,7 @@ nn_gpt2_transformer_block <- nn_module(
     # https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L81
     # also wondering about this line
     # https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L88
-    self$mlp <- nn_gpt2_mlp(n_embd, resid_pdrop)
+    self$mlp <- nn_gpt2_mlp(n_embd, resid_pdrop, initializer_range)
 
     nn_init_zeros_(self$ln_1$bias)
     nn_init_ones_(self$ln_1$weight)
@@ -134,12 +138,10 @@ nn_gpt2_model <- nn_module(
     nn_init_zeros_(self$transformer$ln_f$bias)
     nn_init_ones_(self$transformer$ln_f$weight)
     nn_init_normal_(self$lm_head$weight, mean = 0, std = initializer_range)
-    nn_init_zeros_(self$lm_head$bias)
     for (i in 1:length(self$named_parameters())) {
-      pn <- names(module$named_parameters()[i])
+      pn <- names(self$named_parameters()[i])
       if (grepl("c_proj.weight", pn)) {
-        browser()
-        nn_init_normal_(p, mean = 0, std = initializer_range/sqrt(2 * n_layer))
+        nn_init_normal_(self$named_parameters()[[i]], mean = 0, std = initializer_range/sqrt(2 * n_layer))
       }
     }
   },
@@ -233,8 +235,8 @@ gpt2_from_pretrained <- function(identifier, revision = "main") {
   with_device(device="meta", {
     model <- gpt2_from_config(identifier, revision)
   })
-  browser()
   state_dict <- hf_state_dict(identifier, revision)
+  browser()
   state_dict <- purrr::imap(
     gpt2_hf_weights_remap(),
     \(old_name, new_name) state_dict[[old_name]]
@@ -244,6 +246,13 @@ gpt2_from_pretrained <- function(identifier, revision = "main") {
 }
 
 gpt2_hf_weights_remap <- function(state_dict) {
+  # remove transformer everywhere
+  # "transformer.h.0.mlp.proj.weight" "h.0.mlp.c_proj.weight"
+  # transformer.h.0.mlp.proj.bias "h.0.mlp.c_proj.bias"
+  # same for h.1 - h.11
+  # what about lm_head.weight
+
+
   remap <- c(
     transformer.h.11.mlp.d_1.weight = "gpt2.layers.11.mlp.dense_h_to_4h.weight",
     transformer.h.11.mlp.d_1.bias = "gpt2.layers.11.mlp.dense_h_to_4h.bias",
