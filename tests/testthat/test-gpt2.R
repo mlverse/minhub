@@ -1,4 +1,4 @@
-test_that("can load pre-trained gpt2", {
+test_that("complete workflow: load model, tokenize, predict", {
   identifier <- "gpt2"
   revision <- "e7da7f2"
 
@@ -9,7 +9,8 @@ test_that("can load pre-trained gpt2", {
   # .cache/huggingface/hub/models--gpt2/snapshots/e7da7f221d5bf496a48136c0cd264e630fe9fcc8/pytorch-model.bin
 
   model <- gpt2_from_pretrained(identifier, revision)
-  tok <- tok::tokenizer$from_pretrained(identifier)
+  # tbd from here
+  tok <- tok::tokenizer$from_pretrained(identifier) # what kind of tok is this?
   model$eval()
   model$to(dtype = torch_float())
   model$eval()
@@ -23,8 +24,18 @@ test_that("can load pre-trained gpt2", {
   expect_equal(result, reference, tolerance = 1e-6)
 })
 
+test_that("can generate samples", {
+  identifier <- "gpt2"
+  revision <- "e7da7f2"
+  model <- gpt2_from_pretrained(identifier, revision)
+  # tbd
+})
 
-test_that("initialization works as expected", {
-  model <- gpt2()
+
+test_that("lm_head$weight is tied to transformer$wte$weight", {
+  identifier <- "gpt2"
+  revision <- "e7da7f2"
+  model <- gpt2_from_pretrained(identifier, revision)
+  # tbd
 })
 

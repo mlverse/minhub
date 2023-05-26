@@ -7,15 +7,15 @@
 
 # See also: https://amaarora.github.io/posts/2020-02-18-annotatedGPT2.html
 
-# Daniel do you think we need this: https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L215
-# what about the generate function? https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L283
-# what about these different sizes: https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L126
+# Notes
+# - The pre-trained weights do not contain weights for lm_head. That is because these are tied to the input embeddings
+#   (see tie_weights() in superclass PretrainedModel(https://github.com/huggingface/transformers/blob/f67dac97bdc63874f2288546b3fa87e69d2ea1c8/src/transformers/modeling_utils.py#L1253),
+#   using model-dependent definition of what to tie to here: https://github.com/huggingface/transformers/blob/118e9810687dd713b6be07af79e80eeb1d916908/src/transformers/models/gpt2/modeling_gpt2.py#L735)
+#   and @Karpathy actually imports @Huggingface GPTLMHeadModel: https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L192
 
-# TBD remap (lm_head has no counterpart - took from neox)
-# TBD test weight init
-# tbd tokenizer
-
-
+# tbd tokenizer: like gpt-neox
+# test use generate_sample
+# transpose weights???
 
 
 #' @noRd
@@ -78,14 +78,14 @@ nn_gpt2_attention <- nn_module(
 nn_gpt2_mlp <- nn_module(
   initialize = function(n_embd, resid_pdrop, initializer_range) {
     self$c_fc <- nn_linear(n_embd, 4 * n_embd)
-    self$proj <- nn_linear(4 * n_embd, n_embd)
+    self$c_proj <- nn_linear(4 * n_embd, n_embd)
     self$act <- nn_new_gelu()
     self$dropout <- nn_dropout(resid_pdrop)
 
     nn_init_normal_(self$c_fc$weight, mean = 0, std = initializer_range)
     nn_init_zeros_(self$c_fc$bias)
-    nn_init_normal_(self$proj$weight, mean = 0, std = initializer_range)
-    nn_init_zeros_(self$proj$bias)
+    nn_init_normal_(self$c_proj$weight, mean = 0, std = initializer_range)
+    nn_init_zeros_(self$c_proj$bias)
   },
   forward = function(x) {
     x |>
@@ -107,6 +107,7 @@ nn_gpt2_transformer_block <- nn_module(
     # https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L81
     # also wondering about this line
     # https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L88
+    # mapped that to mlp forward
     self$mlp <- nn_gpt2_mlp(n_embd, resid_pdrop, initializer_range)
 
     nn_init_zeros_(self$ln_1$bias)
@@ -133,11 +134,19 @@ nn_gpt2_model <- nn_module(
      ))
     self$lm_head <- nn_linear(n_embd, vocab_size, bias = FALSE)
 
+    # These initializations are in both @Karpathy and @Huggingface (e.g., https://github.com/huggingface/transformers/blob/118e9810687dd713b6be07af79e80eeb1d916908/src/transformers/models/gpt2/modeling_gpt2.py#L455)
     nn_init_normal_(self$transformer$wte$weight, mean = 0, std = initializer_range)
     nn_init_normal_(self$transformer$wte$weight, mean = 0, std = initializer_range)
     nn_init_zeros_(self$transformer$ln_f$bias)
     nn_init_ones_(self$transformer$ln_f$weight)
     nn_init_normal_(self$lm_head$weight, mean = 0, std = initializer_range)
+    # The following is both in @Karpathy and in @Huggingface (quote from: https://github.com/huggingface/transformers/blob/118e9810687dd713b6be07af79e80eeb1d916908/src/transformers/models/gpt2/modeling_gpt2.py#LL471C9-L476C111)
+    # Reinitialize selected weights subject to the OpenAI GPT-2 Paper Scheme:
+    #   > A modified initialization which accounts for the accumulation on the residual path with model depth. Scale
+    #   > the weights of residual layers at initialization by a factor of 1/√N where N is the # of residual layers.
+    #   >   -- GPT-2 :: https://openai.com/blog/better-language-models/
+    #
+    # Reference (Megatron-LM): https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/model/gpt_model.py
     for (i in 1:length(self$named_parameters())) {
       pn <- names(self$named_parameters()[i])
       if (grepl("c_proj.weight", pn)) {
@@ -236,268 +245,19 @@ gpt2_from_pretrained <- function(identifier, revision = "main") {
     model <- gpt2_from_config(identifier, revision)
   })
   state_dict <- hf_state_dict(identifier, revision)
-  browser()
-  state_dict <- purrr::imap(
-    gpt2_hf_weights_remap(),
-    \(old_name, new_name) state_dict[[old_name]]
-  )
-  model$load_state_dict(state_dict, .refer_to_state_dict = TRUE)
+  #state_dict <- gpt2_hf_weights_remap(state_dict)
+  # Daniel this is the nicest workaround that came to mind, given that the pre-trained model has no lm_head.
+  # To make such things easier, what do you think about having load_state_dict() take a parameter "strict" like in PT?
+  # https://pytorch.org/tutorials/beginner/saving_loading_models.html#warmstarting-model-using-parameters-from-a-different-model
+  model$transformer$load_state_dict(state_dict, .refer_to_state_dict = TRUE)
+  model$lm_head$weight <- model$transformer$wte$weight$detach()
   model
 }
 
-gpt2_hf_weights_remap <- function(state_dict) {
-  # remove transformer everywhere
-  # "transformer.h.0.mlp.proj.weight" "h.0.mlp.c_proj.weight"
-  # transformer.h.0.mlp.proj.bias "h.0.mlp.c_proj.bias"
-  # same for h.1 - h.11
-  # what about lm_head.weight
-
-
-  remap <- c(
-    transformer.h.11.mlp.d_1.weight = "gpt2.layers.11.mlp.dense_h_to_4h.weight",
-    transformer.h.11.mlp.d_1.bias = "gpt2.layers.11.mlp.dense_h_to_4h.bias",
-    transformer.h.11.mlp.d_2.weight = "gpt2.layers.11.mlp.dense_4h_to_h.weight",
-    transformer.h.11.mlp.d_2.bias = "gpt2.layers.11.mlp.dense_4h_to_h.bias",
-    transformer.h.12.ln_1.weight = "gpt2.layers.12.input_layernorm.weight",
-    transformer.h.12.ln_1.bias = "gpt2.layers.12.input_layernorm.bias",
-    transformer.h.12.ln_2.weight = "gpt2.layers.12.post_attention_layernorm.weight",
-    transformer.h.12.ln_2.bias = "gpt2.layers.12.post_attention_layernorm.bias",
-    transformer.h.12.attn.bias = "gpt2.layers.12.attention.bias",
-    transformer.h.12.attn.masked_bias = "gpt2.layers.12.attention.masked_bias",
-    transformer.h.12.attn.rotary.inv_freq = "gpt2.layers.12.attention.rotary_emb.inv_freq",
-    transformer.h.12.attn.c_attn.weight = "gpt2.layers.12.attention.query_key_value.weight",
-    transformer.h.12.attn.c_attn.bias = "gpt2.layers.12.attention.query_key_value.bias",
-    transformer.h.12.attn.c_proj.weight = "gpt2.layers.12.attention.dense.weight",
-    transformer.h.12.attn.c_proj.bias = "gpt2.layers.12.attention.dense.bias",
-    transformer.h.12.mlp.d_1.weight = "gpt2.layers.12.mlp.dense_h_to_4h.weight",
-    transformer.h.12.mlp.d_1.bias = "gpt2.layers.12.mlp.dense_h_to_4h.bias",
-    transformer.h.12.mlp.d_2.weight = "gpt2.layers.12.mlp.dense_4h_to_h.weight",
-    transformer.h.12.mlp.d_2.bias = "gpt2.layers.12.mlp.dense_4h_to_h.bias",
-    transformer.h.13.ln_1.weight = "gpt2.layers.13.input_layernorm.weight",
-    transformer.h.13.ln_1.bias = "gpt2.layers.13.input_layernorm.bias",
-    transformer.h.13.ln_2.weight = "gpt2.layers.13.post_attention_layernorm.weight",
-    transformer.h.13.ln_2.bias = "gpt2.layers.13.post_attention_layernorm.bias",
-    transformer.h.13.attn.bias = "gpt2.layers.13.attention.bias",
-    transformer.h.13.attn.masked_bias = "gpt2.layers.13.attention.masked_bias",
-    transformer.h.13.attn.rotary.inv_freq = "gpt2.layers.13.attention.rotary_emb.inv_freq",
-    transformer.h.13.attn.c_attn.weight = "gpt2.layers.13.attention.query_key_value.weight",
-    transformer.h.13.attn.c_attn.bias = "gpt2.layers.13.attention.query_key_value.bias",
-    transformer.h.13.attn.c_proj.weight = "gpt2.layers.13.attention.dense.weight",
-    transformer.h.13.attn.c_proj.bias = "gpt2.layers.13.attention.dense.bias",
-    transformer.h.13.mlp.d_1.weight = "gpt2.layers.13.mlp.dense_h_to_4h.weight",
-    transformer.h.13.mlp.d_1.bias = "gpt2.layers.13.mlp.dense_h_to_4h.bias",
-    transformer.h.13.mlp.d_2.weight = "gpt2.layers.13.mlp.dense_4h_to_h.weight",
-    transformer.h.13.mlp.d_2.bias = "gpt2.layers.13.mlp.dense_4h_to_h.bias",
-    transformer.h.14.ln_1.weight = "gpt2.layers.14.input_layernorm.weight",
-    transformer.h.14.ln_1.bias = "gpt2.layers.14.input_layernorm.bias",
-    transformer.h.14.ln_2.weight = "gpt2.layers.14.post_attention_layernorm.weight",
-    transformer.h.14.ln_2.bias = "gpt2.layers.14.post_attention_layernorm.bias",
-    transformer.h.14.attn.bias = "gpt2.layers.14.attention.bias",
-    transformer.h.14.attn.masked_bias = "gpt2.layers.14.attention.masked_bias",
-    transformer.h.14.attn.rotary.inv_freq = "gpt2.layers.14.attention.rotary_emb.inv_freq",
-    transformer.h.14.attn.c_attn.weight = "gpt2.layers.14.attention.query_key_value.weight",
-    transformer.h.14.attn.c_attn.bias = "gpt2.layers.14.attention.query_key_value.bias",
-    transformer.h.14.attn.c_proj.weight = "gpt2.layers.14.attention.dense.weight",
-    transformer.h.14.attn.c_proj.bias = "gpt2.layers.14.attention.dense.bias",
-    transformer.h.14.mlp.d_1.weight = "gpt2.layers.14.mlp.dense_h_to_4h.weight",
-    transformer.h.14.mlp.d_1.bias = "gpt2.layers.14.mlp.dense_h_to_4h.bias",
-    transformer.h.14.mlp.d_2.weight = "gpt2.layers.14.mlp.dense_4h_to_h.weight",
-    transformer.h.14.mlp.d_2.bias = "gpt2.layers.14.mlp.dense_4h_to_h.bias",
-    transformer.h.15.ln_1.weight = "gpt2.layers.15.input_layernorm.weight",
-    transformer.h.15.ln_1.bias = "gpt2.layers.15.input_layernorm.bias",
-    transformer.h.15.ln_2.weight = "gpt2.layers.15.post_attention_layernorm.weight",
-    transformer.h.15.ln_2.bias = "gpt2.layers.15.post_attention_layernorm.bias",
-    transformer.h.15.attn.bias = "gpt2.layers.15.attention.bias",
-    transformer.h.15.attn.masked_bias = "gpt2.layers.15.attention.masked_bias",
-    transformer.h.15.attn.rotary.inv_freq = "gpt2.layers.15.attention.rotary_emb.inv_freq",
-    transformer.h.15.attn.c_attn.weight = "gpt2.layers.15.attention.query_key_value.weight",
-    transformer.h.15.attn.c_attn.bias = "gpt2.layers.15.attention.query_key_value.bias",
-    transformer.h.15.attn.c_proj.weight = "gpt2.layers.15.attention.dense.weight",
-    transformer.h.15.attn.c_proj.bias = "gpt2.layers.15.attention.dense.bias",
-    transformer.h.15.mlp.d_1.weight = "gpt2.layers.15.mlp.dense_h_to_4h.weight",
-    transformer.h.15.mlp.d_1.bias = "gpt2.layers.15.mlp.dense_h_to_4h.bias",
-    transformer.h.15.mlp.d_2.weight = "gpt2.layers.15.mlp.dense_4h_to_h.weight",
-    transformer.h.15.mlp.d_2.bias = "gpt2.layers.15.mlp.dense_4h_to_h.bias",
-    transformer.ln_f.weight = "gpt2.final_layer_norm.weight",
-    transformer.ln_f.bias = "gpt2.final_layer_norm.bias",
-    lm_head.weight = "embed_out.weight",
-    transformer.wte.weight = "gpt2.embed_in.weight",
-    transformer.h.0.ln_1.weight = "gpt2.layers.0.input_layernorm.weight",
-    transformer.h.0.ln_1.bias = "gpt2.layers.0.input_layernorm.bias",
-    transformer.h.0.ln_2.weight = "gpt2.layers.0.post_attention_layernorm.weight",
-    transformer.h.0.ln_2.bias = "gpt2.layers.0.post_attention_layernorm.bias",
-    transformer.h.0.attn.bias = "gpt2.layers.0.attention.bias",
-    transformer.h.0.attn.masked_bias = "gpt2.layers.0.attention.masked_bias",
-    transformer.h.0.attn.rotary.inv_freq = "gpt2.layers.0.attention.rotary_emb.inv_freq",
-    transformer.h.0.attn.c_attn.weight = "gpt2.layers.0.attention.query_key_value.weight",
-    transformer.h.0.attn.c_attn.bias = "gpt2.layers.0.attention.query_key_value.bias",
-    transformer.h.0.attn.c_proj.weight = "gpt2.layers.0.attention.dense.weight",
-    transformer.h.0.attn.c_proj.bias = "gpt2.layers.0.attention.dense.bias",
-    transformer.h.0.mlp.d_1.weight = "gpt2.layers.0.mlp.dense_h_to_4h.weight",
-    transformer.h.0.mlp.d_1.bias = "gpt2.layers.0.mlp.dense_h_to_4h.bias",
-    transformer.h.0.mlp.d_2.weight = "gpt2.layers.0.mlp.dense_4h_to_h.weight",
-    transformer.h.0.mlp.d_2.bias = "gpt2.layers.0.mlp.dense_4h_to_h.bias",
-    transformer.h.1.ln_1.weight = "gpt2.layers.1.input_layernorm.weight",
-    transformer.h.1.ln_1.bias = "gpt2.layers.1.input_layernorm.bias",
-    transformer.h.1.ln_2.weight = "gpt2.layers.1.post_attention_layernorm.weight",
-    transformer.h.1.ln_2.bias = "gpt2.layers.1.post_attention_layernorm.bias",
-    transformer.h.1.attn.bias = "gpt2.layers.1.attention.bias",
-    transformer.h.1.attn.masked_bias = "gpt2.layers.1.attention.masked_bias",
-    transformer.h.1.attn.rotary.inv_freq = "gpt2.layers.1.attention.rotary_emb.inv_freq",
-    transformer.h.1.attn.c_attn.weight = "gpt2.layers.1.attention.query_key_value.weight",
-    transformer.h.1.attn.c_attn.bias = "gpt2.layers.1.attention.query_key_value.bias",
-    transformer.h.1.attn.c_proj.weight = "gpt2.layers.1.attention.dense.weight",
-    transformer.h.1.attn.c_proj.bias = "gpt2.layers.1.attention.dense.bias",
-    transformer.h.1.mlp.d_1.weight = "gpt2.layers.1.mlp.dense_h_to_4h.weight",
-    transformer.h.1.mlp.d_1.bias = "gpt2.layers.1.mlp.dense_h_to_4h.bias",
-    transformer.h.1.mlp.d_2.weight = "gpt2.layers.1.mlp.dense_4h_to_h.weight",
-    transformer.h.1.mlp.d_2.bias = "gpt2.layers.1.mlp.dense_4h_to_h.bias",
-    transformer.h.2.ln_1.weight = "gpt2.layers.2.input_layernorm.weight",
-    transformer.h.2.ln_1.bias = "gpt2.layers.2.input_layernorm.bias",
-    transformer.h.2.ln_2.weight = "gpt2.layers.2.post_attention_layernorm.weight",
-    transformer.h.2.ln_2.bias = "gpt2.layers.2.post_attention_layernorm.bias",
-    transformer.h.2.attn.bias = "gpt2.layers.2.attention.bias",
-    transformer.h.2.attn.masked_bias = "gpt2.layers.2.attention.masked_bias",
-    transformer.h.2.attn.rotary.inv_freq = "gpt2.layers.2.attention.rotary_emb.inv_freq",
-    transformer.h.2.attn.c_attn.weight = "gpt2.layers.2.attention.query_key_value.weight",
-    transformer.h.2.attn.c_attn.bias = "gpt2.layers.2.attention.query_key_value.bias",
-    transformer.h.2.attn.c_proj.weight = "gpt2.layers.2.attention.dense.weight",
-    transformer.h.2.attn.c_proj.bias = "gpt2.layers.2.attention.dense.bias",
-    transformer.h.2.mlp.d_1.weight = "gpt2.layers.2.mlp.dense_h_to_4h.weight",
-    transformer.h.2.mlp.d_1.bias = "gpt2.layers.2.mlp.dense_h_to_4h.bias",
-    transformer.h.2.mlp.d_2.weight = "gpt2.layers.2.mlp.dense_4h_to_h.weight",
-    transformer.h.2.mlp.d_2.bias = "gpt2.layers.2.mlp.dense_4h_to_h.bias",
-    transformer.h.3.ln_1.weight = "gpt2.layers.3.input_layernorm.weight",
-    transformer.h.3.ln_1.bias = "gpt2.layers.3.input_layernorm.bias",
-    transformer.h.3.ln_2.weight = "gpt2.layers.3.post_attention_layernorm.weight",
-    transformer.h.3.ln_2.bias = "gpt2.layers.3.post_attention_layernorm.bias",
-    transformer.h.3.attn.bias = "gpt2.layers.3.attention.bias",
-    transformer.h.3.attn.masked_bias = "gpt2.layers.3.attention.masked_bias",
-    transformer.h.3.attn.rotary.inv_freq = "gpt2.layers.3.attention.rotary_emb.inv_freq",
-    transformer.h.3.attn.c_attn.weight = "gpt2.layers.3.attention.query_key_value.weight",
-    transformer.h.3.attn.c_attn.bias = "gpt2.layers.3.attention.query_key_value.bias",
-    transformer.h.3.attn.c_proj.weight = "gpt2.layers.3.attention.dense.weight",
-    transformer.h.3.attn.c_proj.bias = "gpt2.layers.3.attention.dense.bias",
-    transformer.h.3.mlp.d_1.weight = "gpt2.layers.3.mlp.dense_h_to_4h.weight",
-    transformer.h.3.mlp.d_1.bias = "gpt2.layers.3.mlp.dense_h_to_4h.bias",
-    transformer.h.3.mlp.d_2.weight = "gpt2.layers.3.mlp.dense_4h_to_h.weight",
-    transformer.h.3.mlp.d_2.bias = "gpt2.layers.3.mlp.dense_4h_to_h.bias",
-    transformer.h.4.ln_1.weight = "gpt2.layers.4.input_layernorm.weight",
-    transformer.h.4.ln_1.bias = "gpt2.layers.4.input_layernorm.bias",
-    transformer.h.4.ln_2.weight = "gpt2.layers.4.post_attention_layernorm.weight",
-    transformer.h.4.ln_2.bias = "gpt2.layers.4.post_attention_layernorm.bias",
-    transformer.h.4.attn.bias = "gpt2.layers.4.attention.bias",
-    transformer.h.4.attn.masked_bias = "gpt2.layers.4.attention.masked_bias",
-    transformer.h.4.attn.rotary.inv_freq = "gpt2.layers.4.attention.rotary_emb.inv_freq",
-    transformer.h.4.attn.c_attn.weight = "gpt2.layers.4.attention.query_key_value.weight",
-    transformer.h.4.attn.c_attn.bias = "gpt2.layers.4.attention.query_key_value.bias",
-    transformer.h.4.attn.c_proj.weight = "gpt2.layers.4.attention.dense.weight",
-    transformer.h.4.attn.c_proj.bias = "gpt2.layers.4.attention.dense.bias",
-    transformer.h.4.mlp.d_1.weight = "gpt2.layers.4.mlp.dense_h_to_4h.weight",
-    transformer.h.4.mlp.d_1.bias = "gpt2.layers.4.mlp.dense_h_to_4h.bias",
-    transformer.h.4.mlp.d_2.weight = "gpt2.layers.4.mlp.dense_4h_to_h.weight",
-    transformer.h.4.mlp.d_2.bias = "gpt2.layers.4.mlp.dense_4h_to_h.bias",
-    transformer.h.5.ln_1.weight = "gpt2.layers.5.input_layernorm.weight",
-    transformer.h.5.ln_1.bias = "gpt2.layers.5.input_layernorm.bias",
-    transformer.h.5.ln_2.weight = "gpt2.layers.5.post_attention_layernorm.weight",
-    transformer.h.5.ln_2.bias = "gpt2.layers.5.post_attention_layernorm.bias",
-    transformer.h.5.attn.bias = "gpt2.layers.5.attention.bias",
-    transformer.h.5.attn.masked_bias = "gpt2.layers.5.attention.masked_bias",
-    transformer.h.5.attn.rotary.inv_freq = "gpt2.layers.5.attention.rotary_emb.inv_freq",
-    transformer.h.5.attn.c_attn.weight = "gpt2.layers.5.attention.query_key_value.weight",
-    transformer.h.5.attn.c_attn.bias = "gpt2.layers.5.attention.query_key_value.bias",
-    transformer.h.5.attn.c_proj.weight = "gpt2.layers.5.attention.dense.weight",
-    transformer.h.5.attn.c_proj.bias = "gpt2.layers.5.attention.dense.bias",
-    transformer.h.5.mlp.d_1.weight = "gpt2.layers.5.mlp.dense_h_to_4h.weight",
-    transformer.h.5.mlp.d_1.bias = "gpt2.layers.5.mlp.dense_h_to_4h.bias",
-    transformer.h.5.mlp.d_2.weight = "gpt2.layers.5.mlp.dense_4h_to_h.weight",
-    transformer.h.5.mlp.d_2.bias = "gpt2.layers.5.mlp.dense_4h_to_h.bias",
-    transformer.h.6.ln_1.weight = "gpt2.layers.6.input_layernorm.weight",
-    transformer.h.6.ln_1.bias = "gpt2.layers.6.input_layernorm.bias",
-    transformer.h.6.ln_2.weight = "gpt2.layers.6.post_attention_layernorm.weight",
-    transformer.h.6.ln_2.bias = "gpt2.layers.6.post_attention_layernorm.bias",
-    transformer.h.6.attn.bias = "gpt2.layers.6.attention.bias",
-    transformer.h.6.attn.masked_bias = "gpt2.layers.6.attention.masked_bias",
-    transformer.h.6.attn.rotary.inv_freq = "gpt2.layers.6.attention.rotary_emb.inv_freq",
-    transformer.h.6.attn.c_attn.weight = "gpt2.layers.6.attention.query_key_value.weight",
-    transformer.h.6.attn.c_attn.bias = "gpt2.layers.6.attention.query_key_value.bias",
-    transformer.h.6.attn.c_proj.weight = "gpt2.layers.6.attention.dense.weight",
-    transformer.h.6.attn.c_proj.bias = "gpt2.layers.6.attention.dense.bias",
-    transformer.h.6.mlp.d_1.weight = "gpt2.layers.6.mlp.dense_h_to_4h.weight",
-    transformer.h.6.mlp.d_1.bias = "gpt2.layers.6.mlp.dense_h_to_4h.bias",
-    transformer.h.6.mlp.d_2.weight = "gpt2.layers.6.mlp.dense_4h_to_h.weight",
-    transformer.h.6.mlp.d_2.bias = "gpt2.layers.6.mlp.dense_4h_to_h.bias",
-    transformer.h.7.ln_1.weight = "gpt2.layers.7.input_layernorm.weight",
-    transformer.h.7.ln_1.bias = "gpt2.layers.7.input_layernorm.bias",
-    transformer.h.7.ln_2.weight = "gpt2.layers.7.post_attention_layernorm.weight",
-    transformer.h.7.ln_2.bias = "gpt2.layers.7.post_attention_layernorm.bias",
-    transformer.h.7.attn.bias = "gpt2.layers.7.attention.bias",
-    transformer.h.7.attn.masked_bias = "gpt2.layers.7.attention.masked_bias",
-    transformer.h.7.attn.rotary.inv_freq = "gpt2.layers.7.attention.rotary_emb.inv_freq",
-    transformer.h.7.attn.c_attn.weight = "gpt2.layers.7.attention.query_key_value.weight",
-    transformer.h.7.attn.c_attn.bias = "gpt2.layers.7.attention.query_key_value.bias",
-    transformer.h.7.attn.c_proj.weight = "gpt2.layers.7.attention.dense.weight",
-    transformer.h.7.attn.c_proj.bias = "gpt2.layers.7.attention.dense.bias",
-    transformer.h.7.mlp.d_1.weight = "gpt2.layers.7.mlp.dense_h_to_4h.weight",
-    transformer.h.7.mlp.d_1.bias = "gpt2.layers.7.mlp.dense_h_to_4h.bias",
-    transformer.h.7.mlp.d_2.weight = "gpt2.layers.7.mlp.dense_4h_to_h.weight",
-    transformer.h.7.mlp.d_2.bias = "gpt2.layers.7.mlp.dense_4h_to_h.bias",
-    transformer.h.8.ln_1.weight = "gpt2.layers.8.input_layernorm.weight",
-    transformer.h.8.ln_1.bias = "gpt2.layers.8.input_layernorm.bias",
-    transformer.h.8.ln_2.weight = "gpt2.layers.8.post_attention_layernorm.weight",
-    transformer.h.8.ln_2.bias = "gpt2.layers.8.post_attention_layernorm.bias",
-    transformer.h.8.attn.bias = "gpt2.layers.8.attention.bias",
-    transformer.h.8.attn.masked_bias = "gpt2.layers.8.attention.masked_bias",
-    transformer.h.8.attn.rotary.inv_freq = "gpt2.layers.8.attention.rotary_emb.inv_freq",
-    transformer.h.8.attn.c_attn.weight = "gpt2.layers.8.attention.query_key_value.weight",
-    transformer.h.8.attn.c_attn.bias = "gpt2.layers.8.attention.query_key_value.bias",
-    transformer.h.8.attn.c_proj.weight = "gpt2.layers.8.attention.dense.weight",
-    transformer.h.8.attn.c_proj.bias = "gpt2.layers.8.attention.dense.bias",
-    transformer.h.8.mlp.d_1.weight = "gpt2.layers.8.mlp.dense_h_to_4h.weight",
-    transformer.h.8.mlp.d_1.bias = "gpt2.layers.8.mlp.dense_h_to_4h.bias",
-    transformer.h.8.mlp.d_2.weight = "gpt2.layers.8.mlp.dense_4h_to_h.weight",
-    transformer.h.8.mlp.d_2.bias = "gpt2.layers.8.mlp.dense_4h_to_h.bias",
-    transformer.h.9.ln_1.weight = "gpt2.layers.9.input_layernorm.weight",
-    transformer.h.9.ln_1.bias = "gpt2.layers.9.input_layernorm.bias",
-    transformer.h.9.ln_2.weight = "gpt2.layers.9.post_attention_layernorm.weight",
-    transformer.h.9.ln_2.bias = "gpt2.layers.9.post_attention_layernorm.bias",
-    transformer.h.9.attn.bias = "gpt2.layers.9.attention.bias",
-    transformer.h.9.attn.masked_bias = "gpt2.layers.9.attention.masked_bias",
-    transformer.h.9.attn.rotary.inv_freq = "gpt2.layers.9.attention.rotary_emb.inv_freq",
-    transformer.h.9.attn.c_attn.weight = "gpt2.layers.9.attention.query_key_value.weight",
-    transformer.h.9.attn.c_attn.bias = "gpt2.layers.9.attention.query_key_value.bias",
-    transformer.h.9.attn.c_proj.weight = "gpt2.layers.9.attention.dense.weight",
-    transformer.h.9.attn.c_proj.bias = "gpt2.layers.9.attention.dense.bias",
-    transformer.h.9.mlp.d_1.weight = "gpt2.layers.9.mlp.dense_h_to_4h.weight",
-    transformer.h.9.mlp.d_1.bias = "gpt2.layers.9.mlp.dense_h_to_4h.bias",
-    transformer.h.9.mlp.d_2.weight = "gpt2.layers.9.mlp.dense_4h_to_h.weight",
-    transformer.h.9.mlp.d_2.bias = "gpt2.layers.9.mlp.dense_4h_to_h.bias",
-    transformer.h.10.ln_1.weight = "gpt2.layers.10.input_layernorm.weight",
-    transformer.h.10.ln_1.bias = "gpt2.layers.10.input_layernorm.bias",
-    transformer.h.10.ln_2.weight = "gpt2.layers.10.post_attention_layernorm.weight",
-    transformer.h.10.ln_2.bias = "gpt2.layers.10.post_attention_layernorm.bias",
-    transformer.h.10.attn.bias = "gpt2.layers.10.attention.bias",
-    transformer.h.10.attn.masked_bias = "gpt2.layers.10.attention.masked_bias",
-    transformer.h.10.attn.rotary.inv_freq = "gpt2.layers.10.attention.rotary_emb.inv_freq",
-    transformer.h.10.attn.c_attn.weight = "gpt2.layers.10.attention.query_key_value.weight",
-    transformer.h.10.attn.c_attn.bias = "gpt2.layers.10.attention.query_key_value.bias",
-    transformer.h.10.attn.c_proj.weight = "gpt2.layers.10.attention.dense.weight",
-    transformer.h.10.attn.c_proj.bias = "gpt2.layers.10.attention.dense.bias",
-    transformer.h.10.mlp.d_1.weight = "gpt2.layers.10.mlp.dense_h_to_4h.weight",
-    transformer.h.10.mlp.d_1.bias = "gpt2.layers.10.mlp.dense_h_to_4h.bias",
-    transformer.h.10.mlp.d_2.weight = "gpt2.layers.10.mlp.dense_4h_to_h.weight",
-    transformer.h.10.mlp.d_2.bias = "gpt2.layers.10.mlp.dense_4h_to_h.bias",
-    transformer.h.11.ln_1.weight = "gpt2.layers.11.input_layernorm.weight",
-    transformer.h.11.ln_1.bias = "gpt2.layers.11.input_layernorm.bias",
-    transformer.h.11.ln_2.weight = "gpt2.layers.11.post_attention_layernorm.weight",
-    transformer.h.11.ln_2.bias = "gpt2.layers.11.post_attention_layernorm.bias",
-    transformer.h.11.attn.bias = "gpt2.layers.11.attention.bias",
-    transformer.h.11.attn.masked_bias = "gpt2.layers.11.attention.masked_bias",
-    transformer.h.11.attn.rotary.inv_freq = "gpt2.layers.11.attention.rotary_emb.inv_freq",
-    transformer.h.11.attn.c_attn.weight = "gpt2.layers.11.attention.query_key_value.weight",
-    transformer.h.11.attn.c_attn.bias = "gpt2.layers.11.attention.query_key_value.bias",
-    transformer.h.11.attn.c_proj.weight = "gpt2.layers.11.attention.dense.weight",
-    transformer.h.11.attn.c_proj.bias = "gpt2.layers.11.attention.dense.bias"
-  )
-}
+# gpt2_hf_weights_remap <- function(state_dict) {
+#   old_names <- names(state_dict)
+#   new_names <- paste0("transformer.", old_names)
+#   names(state_dict) <- new_names
+#   state_dict
+# }
 
