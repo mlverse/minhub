@@ -12,10 +12,19 @@
 #   (see tie_weights() in superclass PretrainedModel(https://github.com/huggingface/transformers/blob/f67dac97bdc63874f2288546b3fa87e69d2ea1c8/src/transformers/modeling_utils.py#L1253),
 #   using model-dependent definition of what to tie to here: https://github.com/huggingface/transformers/blob/118e9810687dd713b6be07af79e80eeb1d916908/src/transformers/models/gpt2/modeling_gpt2.py#L735)
 #   and @Karpathy actually imports @Huggingface GPTLMHeadModel: https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L192
+#   Regarding whether to copy or to clone, looking in addition at https://github.com/huggingface/transformers/blob/f67dac97bdc63874f2288546b3fa87e69d2ea1c8/src/transformers/models/gpt2/modeling_gpt2.py#L1007
+#   it seems that for gpt2, what effectively happens is `self.lm_head = self.wte`, so they remain tied
 
+#############################         TBD         #############################
 # tbd tokenizer: like gpt-neox
 # test use generate_sample
 # transpose weights???
+# doublecheck these prior notes:
+  # Daniel do you know why karpathy uses module_dict?
+  # https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L81
+  # also wondering about this line
+  # https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L88
+  # mapped that to mlp forward
 
 
 #' @noRd
@@ -103,11 +112,6 @@ nn_gpt2_transformer_block <- nn_module(
     self$attn <- nn_gpt2_attention(n_embd, n_head, n_layer, n_positions, resid_pdrop, attn_pdrop,
                                    initializer_range)
     self$ln_2 <- nn_layer_norm(n_embd, layer_norm_epsilon)
-    # Daniel do you know why karpathy uses module_dict?
-    # https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L81
-    # also wondering about this line
-    # https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L88
-    # mapped that to mlp forward
     self$mlp <- nn_gpt2_mlp(n_embd, resid_pdrop, initializer_range)
 
     nn_init_zeros_(self$ln_1$bias)
@@ -245,19 +249,20 @@ gpt2_from_pretrained <- function(identifier, revision = "main") {
     model <- gpt2_from_config(identifier, revision)
   })
   state_dict <- hf_state_dict(identifier, revision)
-  #state_dict <- gpt2_hf_weights_remap(state_dict)
-  # Daniel this is the nicest workaround that came to mind, given that the pre-trained model has no lm_head.
-  # To make such things easier, what do you think about having load_state_dict() take a parameter "strict" like in PT?
+  browser()
+  state_dict <- gpt2_hf_weights_remap(state_dict)
+  # just an aside here, Daniel what do you think about having load_state_dict() take a parameter "strict" like in PT? (to avoid the error)
   # https://pytorch.org/tutorials/beginner/saving_loading_models.html#warmstarting-model-using-parameters-from-a-different-model
-  model$transformer$load_state_dict(state_dict, .refer_to_state_dict = TRUE)
-  model$lm_head$weight <- model$transformer$wte$weight$detach()
+  state_dict$lm_head$weight <- state_dict$transformer$wte$weight
+  # regarding the clone or no question: see notes above, line 15/16
+  model$load_state_dict(state_dict, .refer_to_state_dict = TRUE)
   model
 }
 
-# gpt2_hf_weights_remap <- function(state_dict) {
-#   old_names <- names(state_dict)
-#   new_names <- paste0("transformer.", old_names)
-#   names(state_dict) <- new_names
-#   state_dict
-# }
+gpt2_hf_weights_remap <- function(state_dict) {
+  old_names <- names(state_dict)
+  new_names <- paste0("transformer.", old_names)
+  names(state_dict) <- new_names
+  state_dict
+}
 
