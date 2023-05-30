@@ -10,10 +10,10 @@ test_that("complete workflow: load model, tokenize, predict", {
 
   model <- gpt2_from_pretrained(identifier, revision)
   # tbd from here
-  tok <- tok::tokenizer$from_pretrained(identifier) # what kind of tok is this?
+  tok <- tok::tokenizer$from_pretrained(identifier) # will download matching tokenizer from https://huggingface.co/gpt2/resolve/e7da7f2/tokenizer.json
   model$eval()
-  model$to(dtype = torch_float())
-  model$eval()
+  #model$to(dtype = torch_float())
+  #model$eval()
   idx <- torch_tensor(tok$encode("Hello world ")$ids)$view(c(1, -1))
   with_no_grad({
     out <- model(idx + 1L)

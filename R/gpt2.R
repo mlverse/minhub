@@ -16,15 +16,21 @@
 #   it seems that for gpt2, what effectively happens is `self.lm_head = self.wte`, so they remain tied
 
 #############################         TBD         #############################
-# tbd tokenizer: like gpt-neox
+#  finish up test
 # test use generate_sample
-# transpose weights???
-# doublecheck these prior notes:
-  # Daniel do you know why karpathy uses module_dict?
-  # https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L81
-  # also wondering about this line
-  # https://github.com/karpathy/minGPT/blob/37baab71b9abea1b76ab957409a1cc2fbfba8a26/mingpt/model.py#L88
-  # mapped that to mlp forward
+
+
+# @Daniel question - do we want this?
+# torch_arange(1, t, dtype = "int")
+# torch_tensor
+# 1
+# 2
+# 3
+# [ CPUIntType{3} ]
+# torch_arange(1, t, dtype = "long")
+# torch_tensor
+# 1
+# 2
 
 
 #' @noRd
@@ -65,15 +71,15 @@ nn_gpt2_attention <- nn_module(
     c(B, T, C) %<-% x$shape
 
     # calculate query, key, values for all heads in batch and move head forward to be the batch dim
-    c(q, k, v)  %<-% self$c_attn(x)$split(self$n_embd, dim = 3) # tbd check dim correct
-    k <- k$view(c(B, T, self$n_head, floor(C / self$n_head)))$transpose(2, 3) # (B, nh, T, hs)  # tbd check
+    c(q, k, v)  %<-% self$c_attn(x)$split(self$n_embd, dim = 3)
+    k <- k$view(c(B, T, self$n_head, floor(C / self$n_head)))$transpose(2, 3) # (B, nh, T, hs)   check
     q <- q$view(c(B, T, self$n_head, floor(C / self$n_head)))$transpose(2, 3) # (B, nh, T, hs)
     v <- v$view(c(B, T, self$n_head, floor(C / self$n_head)))$transpose(2, 3) # (B, nh, T, hs)
 
     # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
     att <- q$matmul(k$transpose(-2, -1)) * (1 / sqrt(k$size(-1)))
-    att <- att$masked_fill(self$bias[ , , 1:T, 1:T] == 0, Inf)
-    att <- F$softmax(att, dim = -1)
+    att <- att$masked_fill(self$bias[ , , 1:T, 1:T] == 0, -Inf)
+    att <- att$softmax(dim = -1)
     att <- self$attn_dropout(att)
     y <- att$matmul(v) # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
     y <- y$transpose(1, 2)$contiguous()$view(c(B, T, C)) # re-assemble all head outputs side by side
@@ -100,7 +106,7 @@ nn_gpt2_mlp <- nn_module(
     x |>
       self$c_fc() |>
       self$act() |>
-      self$proj() |>
+      self$c_proj() |>
       self$dropout()
   }
 )
@@ -120,7 +126,8 @@ nn_gpt2_transformer_block <- nn_module(
     nn_init_ones_(self$ln_2$weight)
   },
   forward = function(x) {
-    x + self$attn(self$ln_1(x)) + self$mlp(self$ln_2(x))
+    x <- x + self$attn(self$ln_1(x)) + self$mlp(self$ln_2(x))
+    x
   }
 )
 
@@ -160,8 +167,8 @@ nn_gpt2_model <- nn_module(
   },
   forward = function(x) {
     tok_emb <- self$transformer$wte(x) # token embeddings of shape (b, t, n_embd)
-    t <- idx$size()
-    pos <- torch_arange(0, t, dtype = torch_long()$unsqueeze(1)) # shape (1, t)
+    t <- x$size()[2]
+    pos <- torch_arange(1, t, dtype = "int")$unsqueeze(1) # shape (1, t)
     pos_emb <- self$transformer$wpe(pos) # position embeddings of shape (1, t, n_embd)
     x <- self$transformer$drop(tok_emb + pos_emb)
     x <- self$transformer$h(x)
@@ -253,6 +260,7 @@ gpt2_from_pretrained <- function(identifier, revision = "main") {
   # just an aside here, Daniel what do you think about having load_state_dict() take a parameter "strict" like in PT? (to avoid the error)
   # https://pytorch.org/tutorials/beginner/saving_loading_models.html#warmstarting-model-using-parameters-from-a-different-model
   state_dict$lm_head.weight <- state_dict$transformer.wte.weight
+  state_dict <- gpt2_hf_weights_transpose(state_dict)
   # regarding the clone or no question: see notes above, line 15/16
   model$load_state_dict(state_dict, .refer_to_state_dict = TRUE)
   model
@@ -262,6 +270,17 @@ gpt2_hf_weights_remap <- function(state_dict) {
   old_names <- names(state_dict)
   new_names <- paste0("transformer.", old_names)
   names(state_dict) <- new_names
+  state_dict
+}
+
+gpt2_hf_weights_transpose <- function(state_dict) {
+  to_be_transposed <- c("attn.c_attn.weight", "attn.c_proj.weight", "mlp.c_fc.weight", "mlp.c_proj.weight")
+  weights <- names(state_dict)
+  for (i in weights) {
+    if (grepl(paste(to_be_transposed,collapse="|"), i)) {
+      state_dict[[i]]$t_()
+    }
+  }
   state_dict
 }
 
