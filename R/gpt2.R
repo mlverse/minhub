@@ -249,11 +249,10 @@ gpt2_from_pretrained <- function(identifier, revision = "main") {
     model <- gpt2_from_config(identifier, revision)
   })
   state_dict <- hf_state_dict(identifier, revision)
-  browser()
   state_dict <- gpt2_hf_weights_remap(state_dict)
   # just an aside here, Daniel what do you think about having load_state_dict() take a parameter "strict" like in PT? (to avoid the error)
   # https://pytorch.org/tutorials/beginner/saving_loading_models.html#warmstarting-model-using-parameters-from-a-different-model
-  state_dict$lm_head$weight <- state_dict$transformer$wte$weight
+  state_dict$lm_head.weight <- state_dict$transformer.wte.weight
   # regarding the clone or no question: see notes above, line 15/16
   model$load_state_dict(state_dict, .refer_to_state_dict = TRUE)
   model
