@@ -15,9 +15,10 @@
 #   Regarding whether to copy or to clone, looking in addition at https://github.com/huggingface/transformers/blob/f67dac97bdc63874f2288546b3fa87e69d2ea1c8/src/transformers/models/gpt2/modeling_gpt2.py#L1007
 #   it seems that for gpt2, what effectively happens is `self.lm_head = self.wte`, so they remain tied
 
-#############################         TBD         #############################
-#  finish up tests
-# test use generate_sample
+
+
+
+
 
 
 # @Daniel question - do we want this?
