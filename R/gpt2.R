@@ -16,7 +16,7 @@
 #   it seems that for gpt2, what effectively happens is `self.lm_head = self.wte`, so they remain tied
 
 #############################         TBD         #############################
-#  finish up test
+#  finish up tests
 # test use generate_sample
 
 
