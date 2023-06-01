@@ -30,5 +30,5 @@ Imports:
 Remotes:
     mlverse/torch,
     mlverse/tok,
-    mlverse/hfhub
+    mlverse/hfhub,
     mlverse/safetensors
