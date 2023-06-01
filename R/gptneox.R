@@ -85,12 +85,15 @@ nn_gptneox_attention <- nn_module(
       split(self$n_embd / self$n_head, dim = -1) |>
       map(\(x) x$transpose(2, 3)))
 
-    q <- self$rotary(q)
-    k <- self$rotary(k)
+    q <- self$rotary(q)$to(dtype="float")
+    k <- self$rotary(k)$to(dtype="float")
 
+    # the following block requires key and value to be in float32 otherwise
+    # it leads to precision problems
     att <- torch_matmul(q, k$transpose(-2, -1)) * (1 / sqrt(k$size(-1)))
     att <- att$masked_fill(self$bias[,,1:t, 1:t] == 0, self$masked_bias)
-    att <- nnf_softmax(att, dim=-1)
+    att <- nnf_softmax(att, dim=-1)$to(dtype = v$dtype)
+    
     y <- torch_matmul(att, v)$transpose(2, 3)$contiguous()$view(c(b, t, h))
     self$c_proj(y)
   }
