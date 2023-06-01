@@ -24,8 +24,10 @@ Imports:
     rlang,
     tok,
     torch (>= 0.10.0),
-    zeallot
+    zeallot,
+    safetensors
 Remotes:
     mlverse/torch,
     mlverse/tok,
     mlverse/hfhub
+    mlverse/safetensors

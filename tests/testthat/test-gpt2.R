@@ -2,35 +2,24 @@ test_that("complete workflow: load model, tokenize, predict", {
   identifier <- "gpt2"
   revision <- "e7da7f2"
 
-  # downloads https://huggingface.co/gpt2/blob/main/pytorch_model.bin, which needs to be converted to the new (zip) format
-  # temporary workaround: load and save in current PyTorch, save to
-  # .cache/huggingface/hub/models--gpt2/blobs/2d19e321961949b7f761cdffefff32c0-66
-  # and check symlink at
-  # .cache/huggingface/hub/models--gpt2/snapshots/e7da7f221d5bf496a48136c0cd264e630fe9fcc8/pytorch-model.bin
-
   model <- gpt2_from_pretrained(identifier, revision)
-  tok <- tok::tokenizer$from_pretrained(identifier) # will download matching tokenizer from https://huggingface.co/gpt2/resolve/e7da7f2/tokenizer.json
-  model$eval()
+
+  par_count <- sum(purrr::map_int(model$parameters, ~.x$numel()))
+  expect_equal(par_count, 124439808) # from HF
+
+  tok <- tok::tokenizer$from_pretrained(identifier)
   idx <- torch_tensor(tok$encode("Hello world ")$ids)$view(c(1, -1))
+  expect_equal(as.integer(idx), c(15496, 995, 220)) # from HF
+
+  model$eval()
   with_no_grad({
     logits <- model(idx + 1L)
   })
-  as.numeric(logits[1, -1, 1:5]) # [1] -28.26509 -27.30587 -29.63981 -30.19297 -29.37851
 
-  # this is what happens in Python
-  # logits are different
-# import transformers
-# import torch
-# from transformers import AutoTokenizer
-# from transformers import GPT2LMHeadModel
-# model_name = "GPT2"
-# tokenizer = AutoTokenizer.from_pretrained(model_name)
-# idx = "Hello world "
-# encoding = tokenizer.encode(idx)
-# model = GPT2LMHeadModel.from_pretrained(model_name)
-# pred = model(torch.tensor(encoding))["logits"]
-# pred.shape # torch.Size([3, 50257])
-# pred[-1, 0:5] # tensor([-53.2292, -55.5639, -58.5087, -57.6649, -59.0031], grad_fn=<SliceBackward0>)
+  reference <- c(-53.2292, -55.5639, -58.5087, -57.6649, -59.0031)
+  value <- as.numeric(logits[1, -1, 1:5])
+
+  expect_equal(value, reference, tolerance = 1e-5)
 
 })
 

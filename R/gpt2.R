@@ -16,92 +16,77 @@
 #   it seems that for gpt2, what effectively happens is `self.lm_head = self.wte`, so they remain tied
 
 
-
-
-
-
-
-# @Daniel question - do we want this?
-# torch_arange(1, t, dtype = "int")
-# torch_tensor
-# 1
-# 2
-# 3
-# [ CPUIntType{3} ]
-# torch_arange(1, t, dtype = "long")
-# torch_tensor
-# 1
-# 2
-
-
 #' @noRd
 #' @importFrom zeallot %<-%
 #' @importFrom purrr map
 #' @import torch
 NULL
 
-nn_new_gelu <- nn_module(
-  forward = function(x) {
-    0.5 * x * (1 + torch_tanh(sqrt(2 / pi) * (x + 0.044715 * torch_pow(x, 3))))
-  }
-)
 
 # Following @Karpathy. See @Huggingface for an alternative implementation.
 nn_gpt2_attention <- nn_module(
-  initialize = function(n_embd, n_head, n_layer, n_positions, resid_pdrop,
-                        attn_pdrop, initializer_range) {
-    self$n_head = n_head
-    self$n_embd = n_embd
+  initialize = function(n_embd, n_head, n_layer, max_pos, pdrop) {
+    self$n_head <- n_head
+    self$n_embd <- n_embd
+    self$n_layer <- n_layer
+
     # key, query, value projections for all heads, but in a batch
     self$c_attn = nn_linear(n_embd, 3 * n_embd)
     # output projection
     self$c_proj = nn_linear(n_embd, n_embd)
-    # regularization
-    self$attn_dropout = nn_dropout(attn_pdrop)
-    self$resid_dropout = nn_dropout(resid_pdrop)
-    # causal mask to ensure that attention is only applied to the left in the input sequence
-    self$register_buffer("bias", torch_tril(torch_ones(n_positions, n_positions))$view(c(1, 1, n_positions, n_positions)))
 
-    nn_init_normal_(self$c_attn$weight, mean = 0, std = initializer_range)
-    nn_init_zeros_(self$c_attn$bias)
-    nn_init_normal_(self$c_proj$weight, mean = 0, std = initializer_range/sqrt(2 * n_layer))
-    nn_init_zeros_(self$c_proj$bias)
+    # regularization
+    self$attn_dropout = nn_dropout(pdrop)
+    self$resid_dropout = nn_dropout(pdrop)
+
+    # causal mask to ensure that attention is only applied to the left in the input sequence
+    self$bias <- torch_ones(max_pos, max_pos)$
+      bool()$
+      tril()$
+      view(c(1, 1, max_pos, max_pos)) |>
+      nn_buffer()
+
+    self$reset_parameters()
   },
   forward = function(x) {
     # batch size, sequence length, embedding dimensionality (n_embd)
-    c(B, T, C) %<-% x$shape
+    c(b, t, c) %<-% x$shape
 
     # calculate query, key, values for all heads in batch and move head forward to be the batch dim
-    c(q, k, v)  %<-% self$c_attn(x)$split(self$n_embd, dim = 3)
-    k <- k$view(c(B, T, self$n_head, floor(C / self$n_head)))$transpose(2, 3) # (B, nh, T, hs)   check
-    q <- q$view(c(B, T, self$n_head, floor(C / self$n_head)))$transpose(2, 3) # (B, nh, T, hs)
-    v <- v$view(c(B, T, self$n_head, floor(C / self$n_head)))$transpose(2, 3) # (B, nh, T, hs)
+    c(q, k, v)  %<-% ((self$c_attn(x)$
+      split(self$n_embd, dim = -1)) |>
+      map(\(x) x$view(c(b, t, self$n_head, c / self$n_head))) |>
+      map(\(x) x$transpose(2, 3)))
 
     # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
     att <- q$matmul(k$transpose(-2, -1)) * (1 / sqrt(k$size(-1)))
-    att <- att$masked_fill(self$bias[ , , 1:T, 1:T] == 0, -Inf)
+    att <- att$masked_fill(self$bias[ , , 1:t, 1:t] == 0, -Inf)
     att <- att$softmax(dim = -1)
     att <- self$attn_dropout(att)
+
     y <- att$matmul(v) # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
-    y <- y$transpose(1, 2)$contiguous()$view(c(B, T, C)) # re-assemble all head outputs side by side
+    y <- y$transpose(2, 3)$contiguous()$view(c(b, t, c)) # re-assemble all head outputs side by side
 
     # output projection
     y <- self$resid_dropout(self$c_proj(y))
     y
+  },
+  reset_parameters = function(initializer_range = 0.02) {
+    nn_init_normal_(self$c_attn$weight, mean = 0, std = initializer_range)
+    nn_init_zeros_(self$c_attn$bias)
+    nn_init_normal_(self$c_proj$weight, mean = 0, std = initializer_range/sqrt(2 * self$n_layer))
+    nn_init_zeros_(self$c_proj$bias)
   }
 )
 
 nn_gpt2_mlp <- nn_module(
-  initialize = function(n_embd, resid_pdrop, initializer_range) {
+  initialize = function(n_embd, pdrop) {
     self$c_fc <- nn_linear(n_embd, 4 * n_embd)
     self$c_proj <- nn_linear(4 * n_embd, n_embd)
-    self$act <- nn_new_gelu()
-    self$dropout <- nn_dropout(resid_pdrop)
+    self$act <- nn_gelu(approximate = "tanh")
+    self$dropout <- nn_dropout(pdrop)
 
-    nn_init_normal_(self$c_fc$weight, mean = 0, std = initializer_range)
-    nn_init_zeros_(self$c_fc$bias)
-    nn_init_normal_(self$c_proj$weight, mean = 0, std = initializer_range)
-    nn_init_zeros_(self$c_proj$bias)
+    self$reset_parameters()
   },
   forward = function(x) {
     x |>
@@ -109,43 +94,60 @@ nn_gpt2_mlp <- nn_module(
       self$act() |>
       self$c_proj() |>
       self$dropout()
+  },
+  reset_parameters = function(initializer_range = 0.02) {
+    nn_init_normal_(self$c_fc$weight, mean = 0, std = initializer_range)
+    nn_init_zeros_(self$c_fc$bias)
+    nn_init_normal_(self$c_proj$weight, mean = 0, std = initializer_range)
+    nn_init_zeros_(self$c_proj$bias)
   }
 )
 
 nn_gpt2_transformer_block <- nn_module(
-  initialize = function(n_embd, n_head, n_layer, n_positions, resid_pdrop, attn_pdrop,
-                        layer_norm_epsilon, initializer_range) {
-    self$ln_1 <- nn_layer_norm(n_embd, layer_norm_epsilon)
-    self$attn <- nn_gpt2_attention(n_embd, n_head, n_layer, n_positions, resid_pdrop, attn_pdrop,
-                                   initializer_range)
-    self$ln_2 <- nn_layer_norm(n_embd, layer_norm_epsilon)
-    self$mlp <- nn_gpt2_mlp(n_embd, resid_pdrop, initializer_range)
-
-    nn_init_zeros_(self$ln_1$bias)
-    nn_init_ones_(self$ln_1$weight)
-    nn_init_zeros_(self$ln_2$bias)
-    nn_init_ones_(self$ln_2$weight)
+  initialize = function(n_embd, n_head, n_layer, max_pos, pdrop) {
+    self$ln_1 <- nn_layer_norm(n_embd, eps = 1e-5)
+    self$attn <- nn_gpt2_attention(n_embd, n_head, n_layer, max_pos, pdrop)
+    self$ln_2 <- nn_layer_norm(n_embd, eps = 1e-5)
+    self$mlp <- nn_gpt2_mlp(n_embd, pdrop)
   },
   forward = function(x) {
-    x <- x + self$attn(self$ln_1(x)) + self$mlp(self$ln_2(x))
-    x
+    x <- x + self$attn(self$ln_1(x))
+    x + self$mlp(self$ln_2(x))
   }
 )
 
 nn_gpt2_model <- nn_module(
-  initialize = function(vocab_size, n_embd, n_head, n_layer, n_positions, resid_pdrop, embd_pdrop,
-                        attn_pdrop, layer_norm_epsilon, initializer_range) {
-     self$transformer <- nn_module_dict(list(
-     wte = nn_embedding(vocab_size, n_embd),
-     wpe = nn_embedding(n_positions, n_embd),
-     drop = nn_dropout(embd_pdrop),
-     h = nn_sequential(
-       !!!1:n_layer |>
-         map(\(x) nn_gpt2_transformer_block(n_embd, n_head, n_layer, n_positions, resid_pdrop, attn_pdrop, layer_norm_epsilon, initializer_range))),
-     ln_f = nn_layer_norm(n_embd, layer_norm_epsilon)
-     ))
+  initialize = function(vocab_size, n_embd, n_head, n_layer, max_pos, pdrop) {
+    self$n_layer <- n_layer
+
+    self$transformer <- nn_module_dict(list(
+      wte = nn_embedding(vocab_size, n_embd),
+      wpe = nn_embedding(max_pos, n_embd),
+      drop = nn_dropout(pdrop),
+      h = nn_sequential(!!!map(
+        1:n_layer,
+        \(x) nn_gpt2_transformer_block(n_embd, n_head, n_layer, max_pos, pdrop)
+      )),
+      ln_f = nn_layer_norm(n_embd, eps = 1e-5)
+    ))
+
     self$lm_head <- nn_linear(n_embd, vocab_size, bias = FALSE)
 
+    self$reset_parameters()
+  },
+  forward = function(x) {
+    tok_emb <- self$transformer$wte(x) # token embeddings of shape (b, t, n_embd)
+
+    pos <- torch_arange(1, x$size(2))$to(dtype="long")$unsqueeze(1) # shape (1, t)
+    pos_emb <- self$transformer$wpe(pos) # position embeddings of shape (1, t, n_embd)
+
+    x <- self$transformer$drop(tok_emb + pos_emb)
+    x <- self$transformer$h(x)
+    x <- self$transformer$ln_f(x)
+    x <- self$lm_head(x)
+    x
+  },
+  reset_parameters = function(initializer_range = 0.02) {
     # These initializations are in both @Karpathy and @Huggingface (e.g., https://github.com/huggingface/transformers/blob/118e9810687dd713b6be07af79e80eeb1d916908/src/transformers/models/gpt2/modeling_gpt2.py#L455)
     nn_init_normal_(self$transformer$wte$weight, mean = 0, std = initializer_range)
     nn_init_normal_(self$transformer$wte$weight, mean = 0, std = initializer_range)
@@ -159,23 +161,12 @@ nn_gpt2_model <- nn_module(
     #   >   -- GPT-2 :: https://openai.com/blog/better-language-models/
     #
     # Reference (Megatron-LM): https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/model/gpt_model.py
-    for (i in 1:length(self$named_parameters())) {
-      pn <- names(self$named_parameters()[i])
-      if (grepl("c_proj.weight", pn)) {
-        nn_init_normal_(self$named_parameters()[[i]], mean = 0, std = initializer_range/sqrt(2 * n_layer))
+    parameters <- self$named_parameters()
+    purrr::imap(parameters, function(par, nm) {
+      if (grepl("c_proj.weight", nm, fixed = TRUE)) {
+        nn_init_normal_(par, mean = 0, std = initializer_range/sqrt(2 * self$n_layer))
       }
-    }
-  },
-  forward = function(x) {
-    tok_emb <- self$transformer$wte(x) # token embeddings of shape (b, t, n_embd)
-    t <- x$size()[2]
-    pos <- torch_arange(1, t, dtype = "int")$unsqueeze(1) # shape (1, t)
-    pos_emb <- self$transformer$wpe(pos) # position embeddings of shape (1, t, n_embd)
-    x <- self$transformer$drop(tok_emb + pos_emb)
-    x <- self$transformer$h(x)
-    x <- self$transformer$ln_f(x)
-    x <- self$lm_head(x)
-    x
+    })
   }
 )
 
@@ -195,11 +186,9 @@ nn_gpt2_model <- nn_module(
 #' @param initializer_range A float specifying the standard deviation of the truncated_normal_initializer for initializing all weight matrices.
 #' @returns An initialized [torch::nn_module()].
 #' @export
-gpt2 <- function(vocab_size = 50257, n_embd = 768, n_head = 12, n_layer = 12, n_positions = 1024,
-                 resid_pdrop = 0.1, embd_pdrop = 0.1, attn_pdrop = 0.1, layer_norm_epsilon = 1e-05,
-                 initializer_range = 0.02) {
-  nn_gpt2_model(vocab_size, n_embd, n_head, n_layer, n_positions, resid_pdrop, embd_pdrop,
-                attn_pdrop, layer_norm_epsilon, initializer_range)
+gpt2 <- function(vocab_size = 50257, n_embd = 768, n_head = 12, n_layer = 12,
+                 max_pos = 1024, pdrop = 0.1) {
+  nn_gpt2_model(vocab_size, n_embd, n_head, n_layer, max_pos, pdrop)
 }
 
 gpt2_default_config <- function() {
@@ -217,7 +206,6 @@ gpt2_default_config <- function() {
     vocab_size = 50257 #  number of unique tokens in the input data
   )
   config
-
 }
 
 #' @describeIn gpt2 Initializes a gpt2 model using a configuration defined in HF Hub
@@ -233,19 +221,25 @@ gpt2_from_config <- function(identifier, revision = "main") {
       "{.arg config$model_type} must be {.val gpt2}, got {.val {config$model_type}}"
     ))
 
-  default_config <- gpt2_default_config()
+  if (config$layer_norm_eps != 1e-5)
+    cli::cli_abort("{.arg config$layer_norm_eps} must be {.val 1e-5}.")
 
-  gpt2(vocab_size = if (!is.null(config$vocab_size)) config$vocab_size else default_config$vocab_size,
-       n_embd = if (!is.null(config$n_embd)) config$n_embd else default_config$n_embd,
-       n_head = if (!is.null(config$n_head)) config$n_head else default_config$n_head,
-       n_layer = if (!is.null(config$n_layer)) config$n_layer else default_config$n_layer,
-       n_positions = if (!is.null(config$n_positions)) config$n_positions else default_config$n_positions,
-       resid_pdrop = if (!is.null(config$resid_pdrop)) config$resid_pdrop else default_config$resid_pdrop,
-       embd_pdrop = if (!is.null(config$embd_pdrop)) config$embd_pdrop else default_config$embd_pdrop,
-       attn_pdrop = if (!is.null(config$attn_pdrop)) config$attn_pdrop else default_config$attn_pdrop,
-       layer_norm_epsilon = if (!is.null(config$layer_norm_epsilon)) config$layer_norm_epsilon else default_config$layer_norm_epsilon,
-       initializer_range = if (!is.null(config$initializer_range)) config$initializer_range else default_config$initializer_range
-  )
+  pdrop <- unlist(config[c("resid_pdrop", "embd_pdrop", "attn_pdrop")])
+  if (length(unique(pdrop)) != 1)
+    cli::cli_abort("{.arg {names(pdrop)}} must be all equal, but got {pdrop}")
+  else
+    pdrop <- unique(pdrop)
+
+  if (config$initializer_range != 0.02)
+    cli::cli_abort("{.arg initializer_range} must be {.val 0.02}, got {config$initializer_range}")
+
+  vocab_size <- config$vocab_size
+  n_embd     <- config$n_embd
+  n_head     <- config$n_head
+  n_layer    <- config$n_layer
+  max_pos    <- config$n_positions
+
+  gpt2(vocab_size, n_embd, n_head, n_layer, max_pos, pdrop)
 }
 
 #' @describeIn gpt2 Initializes the gpt2 model and load pre-trained weights from HF hub.
@@ -276,10 +270,9 @@ gpt2_hf_weights_remap <- function(state_dict) {
 
 gpt2_hf_weights_transpose <- function(state_dict) {
   to_be_transposed <- c("attn.c_attn.weight", "attn.c_proj.weight", "mlp.c_fc.weight", "mlp.c_proj.weight")
-  weights <- names(state_dict)
-  for (i in weights) {
-    if (grepl(paste(to_be_transposed,collapse="|"), i)) {
-      state_dict[[i]]$t_()
+  for (nm in names(state_dict)) {
+    if (any(endsWith(nm, to_be_transposed))) {
+      state_dict[[nm]]$t_() # transpose in-place
     }
   }
   state_dict
