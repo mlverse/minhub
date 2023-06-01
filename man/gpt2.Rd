@@ -4,15 +4,15 @@
 \alias{gpt2}
 \alias{gpt2_from_config}
 \alias{gpt2_from_pretrained}
-\title{GPT NeoX}
+\title{GPT2}
 \usage{
 gpt2(
-  vocab_size = 50432,
-  n_embd = 6144,
-  n_head = 64,
-  n_layer = 44,
-  max_pos = 2048,
-  n_rot = 0.25
+  vocab_size = 50257,
+  n_embd = 768,
+  n_head = 12,
+  n_layer = 12,
+  max_pos = 1024,
+  pdrop = 0.1
 )
 
 gpt2_from_config(identifier, revision = "main")
@@ -20,34 +20,28 @@ gpt2_from_config(identifier, revision = "main")
 gpt2_from_pretrained(identifier, revision = "main")
 }
 \arguments{
-\item{vocab_size}{An integer indicating the size of the vocabulary or the number
-of unique tokens in the input data.}
+\item{vocab_size}{An optional integer indicating the size of the vocabulary or the number of unique tokens in the input data.}
 
-\item{n_embd}{An integer specifying the dimensionality of the embedding vectors.}
+\item{n_embd}{An integer specifying the Dimensionality of the embeddings and hidden states.}
 
-\item{n_head}{An integer representing the number of attention heads in the
-multi-head attention mechanism.}
+\item{n_head}{An integer representing the number of attention heads in each attention layer in the Transformer encoder.}
 
-\item{n_layer}{An integer indicating the number of layers in the deep learning model.}
+\item{n_layer}{An integer indicating the umber of hidden layers in the Transformer encoder.}
 
-\item{max_pos}{An integer specifying the maximum position encoding value or
-the maximum sequence length.}
+\item{max_pos}{An integer specifying the maximum sequence length that this model might ever be used with.}
 
-\item{n_rot}{An integer indicating the number dimensions used in the rotary
-position embedding. Can also be a float \verb{0 < n_rot < 1} indicating the fraction
-of \code{n_embd}.}
+\item{pdrop}{The dropout rate used in a few locations, such as after the embeddings,
+attention layers and residual connections.}
 
-\item{identifier}{A string representing the identifier or name of the pre-trained
-model in the Hugging Face model hub.}
+\item{identifier}{A string representing the identifier or name of the pre-trained model in the Hugging Face model hub.}
 
-\item{revision}{A string specifying the revision or version of the pre-trained
-model in the Hugging Face model hub.}
+\item{revision}{A string specifying the revision or version of the pre-trained model in the Hugging Face model hub.}
 }
 \value{
 An initialized \code{\link[torch:nn_module]{torch::nn_module()}}.
 }
 \description{
-Initializes a gpt2 like model
+Initializes a gpt2-type model
 }
 \section{Functions}{
 \itemize{

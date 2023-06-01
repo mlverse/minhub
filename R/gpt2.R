@@ -18,7 +18,7 @@
 
 #' @noRd
 #' @importFrom zeallot %<-%
-#' @importFrom purrr map
+#' @importFrom purrr map imap
 #' @import torch
 NULL
 
@@ -162,7 +162,7 @@ nn_gpt2_model <- nn_module(
     #
     # Reference (Megatron-LM): https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/model/gpt_model.py
     parameters <- self$named_parameters()
-    purrr::imap(parameters, function(par, nm) {
+    imap(parameters, function(par, nm) {
       if (grepl("c_proj.weight", nm, fixed = TRUE)) {
         nn_init_normal_(par, mean = 0, std = initializer_range/sqrt(2 * self$n_layer))
       }
@@ -178,34 +178,14 @@ nn_gpt2_model <- nn_module(
 #' @param n_embd An integer specifying the Dimensionality of the embeddings and hidden states.
 #' @param n_head An integer representing the number of attention heads in each attention layer in the Transformer encoder.
 #' @param n_layer An integer indicating the umber of hidden layers in the Transformer encoder.
-#' @param n_positions An integer specifying the maximum sequence length that this model might ever be used with.
-#' @param resid_pdrop A float specifying dropout probability for all fully connected layers in the embeddings, encoder, and pooler.
-#' @param embd_pdrop A float specifying the dropout ratio for the embeddings.
-#' @param attn_pdrop A float specifying the dropout ratio for the attention modules.
-#' @param layer_norm_epsilon A float specifying t value of epsilon to use in the layer normalization layers.
-#' @param initializer_range A float specifying the standard deviation of the truncated_normal_initializer for initializing all weight matrices.
+#' @param max_pos An integer specifying the maximum sequence length that this model might ever be used with.
+#' @param pdrop The dropout rate used in a few locations, such as after the embeddings,
+#'   attention layers and residual connections.
 #' @returns An initialized [torch::nn_module()].
 #' @export
 gpt2 <- function(vocab_size = 50257, n_embd = 768, n_head = 12, n_layer = 12,
                  max_pos = 1024, pdrop = 0.1) {
   nn_gpt2_model(vocab_size, n_embd, n_head, n_layer, max_pos, pdrop)
-}
-
-gpt2_default_config <- function() {
-  config <- list(
-    attn_pdrop = 0.1, # dropout ratio for the attention modules
-    embd_pdrop = 0.1, # dropout ratio for the embeddings
-    initializer_range = 0.02, # standard deviation of the truncated_normal_initializer for initializing all weight matrices.
-    layer_norm_epsilon = 1e-05, # the value for epsilon to use in the layer normalization layers
-    model_type = gpt2,
-    n_embd = 768, # dimensionality of the embeddings and hidden states
-    n_head = 12, # number of attention heads in each attention layer in the Transformer encoder
-    n_layer = 12, # number of hidden layers in the Transformer encoder
-    n_positions = 1024, # maximum sequence length that this model might ever be used with
-    resid_pdrop = 0.1, # dropout probability for all fully connected layers in the embeddings, encoder, and pooler
-    vocab_size = 50257 #  number of unique tokens in the input data
-  )
-  config
 }
 
 #' @describeIn gpt2 Initializes a gpt2 model using a configuration defined in HF Hub

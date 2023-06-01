@@ -25,7 +25,8 @@ Imports:
     tok,
     torch (>= 0.10.0),
     zeallot,
-    safetensors
+    safetensors,
+    jsonlite
 Remotes:
     mlverse/torch,
     mlverse/tok,
