@@ -26,7 +26,7 @@ minhub currently implements:
 
 - [GPT-NeoX-20B: An Open-Source Autoregressive Language Model](https://arxiv.org/abs/2204.06745): [🤗gpt_neox](https://huggingface.co/models?other=gpt_neox), [📄gptneox.R](./R/gptneox.R)
 - [SantaCoder: don't reach for the stars!](https://arxiv.org/abs/2301.03988): [🤗gpt_bigcode](https://huggingface.co/models?other=gpt_bigcode), [📄gptbigcode.R](./R/gptbigcode.R)
-- [Language Models are Unsupervised Multitask Learners](https://paperswithcode.com/method/gpt-2): [📄gpt2.R](./R/gpt2.R)
+- [Language Models are Unsupervised Multitask Learners](https://paperswithcode.com/method/gpt-2): [🤗gpt2](https://huggingface.co/models?other=gpt2), [📄gpt2.R](./R/gpt2.R)
 
 ## Installation
 
