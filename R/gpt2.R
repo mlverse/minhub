@@ -50,7 +50,6 @@ nn_gpt2_attention <- nn_module(
   },
   forward = function(x) {
     # batch size, sequence length, embedding dimensionality (n_embd)
-    browser()
     c(b, t, c) %<-% x$shape
 
     # calculate query, key, values for all heads in batch and move head forward to be the batch dim
