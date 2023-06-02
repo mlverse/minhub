@@ -4,7 +4,17 @@
 #' @importFrom hfhub hub_download WEIGHTS_NAME WEIGHTS_INDEX_NAME
 #' @export
 hf_state_dict <- function(identifier, revision = "main") {
+    
+  # first try safetensors file
+  weights_path <- try(
+    hub_download(identifier, SAFETENSORS_NAME(), revision=revision),
+    silent = TRUE
+  )
 
+  if (!inherits(weights_path, "try-error")) {
+    return(safetensors::safe_load_file(weights_path))
+  }  
+  
   err <- NULL
   # try downloading the weights from the pytorch_model.bin path and save error
   # if any happened
@@ -37,5 +47,9 @@ hf_state_dict <- function(identifier, revision = "main") {
     names(weights_path) <- NULL
   }
   do.call("c", lapply(weights_path, torch::load_state_dict))
+}
+
+SAFETENSORS_NAME <- function() {
+  "model.safetensors"
 }
 
