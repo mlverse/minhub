@@ -52,7 +52,7 @@ SAFETENSORS_INDEX_NAME <- function() {
   "model.safetensors.index.json"
 }
 
-state_dict_safetensors <- function(indentifier, revision) {
+state_dict_safetensors <- function(identifier, revision) {
   # first try safetensors file
   weights_path <- try(
     hub_download(identifier, SAFETENSORS_NAME(), revision=revision),
