@@ -77,5 +77,9 @@ state_dict_safetensors <- function(indentifier, revision) {
     unlist() %>%
     unique()
 
+  index <- sapply(index, function(fname) {
+    hub_download(identifier, fname, revision = revision)
+  })
+
   do.call("c", lapply(index, safetensors::safe_load_file))
 }
