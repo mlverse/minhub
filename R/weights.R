@@ -4,17 +4,12 @@
 #' @importFrom hfhub hub_download WEIGHTS_NAME WEIGHTS_INDEX_NAME
 #' @export
 hf_state_dict <- function(identifier, revision = "main") {
-    
-  # first try safetensors file
-  weights_path <- try(
-    hub_download(identifier, SAFETENSORS_NAME(), revision=revision),
-    silent = TRUE
-  )
 
-  if (!inherits(weights_path, "try-error")) {
-    return(safetensors::safe_load_file(weights_path))
-  }  
-  
+  state_dict <- try(state_dict_safetensors(identifier, revision))
+  if (!inherits(state_dict, "try-error")) {
+    return(state_dict)
+  }
+
   err <- NULL
   # try downloading the weights from the pytorch_model.bin path and save error
   # if any happened
@@ -53,3 +48,34 @@ SAFETENSORS_NAME <- function() {
   "model.safetensors"
 }
 
+SAFETENSORS_INDEX_NAME <- function() {
+  "model.safetensors.index.json"
+}
+
+state_dict_safetensors <- function(indentifier, revision) {
+  # first try safetensors file
+  weights_path <- try(
+    hub_download(identifier, SAFETENSORS_NAME(), revision=revision),
+    silent = TRUE
+  )
+
+  if (!inherits(weights_path, "try-error")) {
+    return(safetensors::safe_load_file(weights_path))
+  }
+
+  # now try the index
+  index_path <- try(
+    hub_download(identifier, SAFETENSORS_INDEX_NAME(), revision=revision),
+    silent = TRUE
+  )
+
+  if (inherits(index_path, "try-error")) {
+    cli::cli_abort("No safetensors files found.")
+  }
+
+  index <- jsonlite::fromJSON(index_path)$weight_map %>%
+    unlist() %>%
+    unique()
+
+  do.call("c", lapply(index, safetensors::safe_load_file))
+}
