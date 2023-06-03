@@ -175,7 +175,14 @@ gptbigcode_from_pretrained <- function(identifier, revision = "main") {
   with_device(device="meta", {
     model <- gptbigcode_from_config(identifier, revision)
   })
+
   state_dict <- hf_state_dict(identifier, revision)
+  # some state dicts don't include the lm_head as it's the same as the
+  # token embedding weights.
+  if (is.null(state_dict$lm_head.weight)) {
+    state_dict$lm_head.weight <- state_dict$transformer.wte.weight
+  }
+
   model$load_state_dict(state_dict, .refer_to_state_dict = TRUE)
   model
 }
