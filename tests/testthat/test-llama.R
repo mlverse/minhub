@@ -1,4 +1,5 @@
 test_that("Can create a llama model", {
+  skip_on_ci() # this is too big for the github runners.
   model <- llama_from_pretrained("huggyllama/llama-7b")
   model$to(dtype=torch_float32())
   model$eval()
