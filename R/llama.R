@@ -35,11 +35,7 @@ nn_llama_rotary_embedding <- nn_module(
   initialize = function(n_embd, max_pos, base=10000) {
     self$n_embd <- n_embd
     self$max_pos <- max_pos
-
-    self$inv_freq <- nn_buffer(
-      torch_ones(1) / (base ^ (torch_arange(0, n_embd-1, step = 2) / n_embd)),
-      persistent = TRUE
-    )
+    self$base <- base
 
     self$cached_embeddings() # populate the cache
   },
@@ -51,10 +47,17 @@ nn_llama_rotary_embedding <- nn_module(
   cached_embeddings = function(t = 1, invalidate = FALSE) {
     invalidate <- invalidate || is.null(self$cos)
     if (invalidate) {
+
+      self$inv_freq <- nn_buffer(
+        torch_ones(1) / (self$base ^ (torch_arange(0, self$n_embd-1, step = 2) / self$n_embd)),
+        persistent = FALSE # unlike llama this is not a persistent buffer
+      )
+
       freqs <- torch_arange(start = 0, end = self$max_pos - 1)$
         float()$
         outer(self$inv_freq)$
         view(c(1,1, self$max_pos, self$n_embd/2))
+
       emb <- torch_cat(list(freqs, freqs), dim = -1)
       self$cos <- nn_buffer(emb$cos(), persistent = FALSE)
       self$sin <- nn_buffer(emb$sin(), persistent = FALSE)
@@ -71,12 +74,12 @@ nn_llama_rotary_embedding <- nn_module(
 )
 
 nn_llama_attention <- nn_module(
-  initialize = function(n_head, n_embd, max_pos, n_rot) {
+  initialize = function(n_head, n_embd, max_pos, rope_base) {
     self$n_head <- n_head
     self$n_embd <- n_embd
 
     self$max_pos <- max_pos
-    self$rotary <- nn_llama_rotary_embedding(n_embd/n_head, max_pos)
+    self$rotary <- nn_llama_rotary_embedding(n_embd/n_head, max_pos, rope_base)
 
     self$q_proj <- nn_linear(n_embd, n_embd, bias = FALSE)
     self$k_proj <- nn_linear(n_embd, n_embd, bias = FALSE)
@@ -135,10 +138,10 @@ nn_llama_mlp <- nn_module(
 )
 
 nn_llama_layer <- nn_module(
-  initialize = function(n_embd, n_inter, n_head, max_pos) {
-    self$ln_1 <- nn_llama_rmsnorm(n_embd)
-    self$ln_2 <- nn_llama_rmsnorm(n_embd)
-    self$attn <- nn_llama_attention(n_head, n_embd, max_pos)
+  initialize = function(n_embd, n_inter, n_head, max_pos, rmsnorm_eps, rope_base) {
+    self$ln_1 <- nn_llama_rmsnorm(n_embd, rmsnorm_eps)
+    self$ln_2 <- nn_llama_rmsnorm(n_embd, rmsnorm_eps)
+    self$attn <- nn_llama_attention(n_head, n_embd, max_pos, rope_base)
     self$mlp <- nn_llama_mlp(n_embd, n_inter)
   },
   forward = function(x) {
@@ -148,14 +151,15 @@ nn_llama_layer <- nn_module(
 )
 
 nn_llama_model <- nn_module(
-  initialize = function(vocab_size, n_embd, n_inter, n_head, n_layer, max_pos) {
+  initialize = function(vocab_size, n_embd, n_inter, n_head, n_layer, max_pos,
+                        rmsnorm_eps, rope_base) {
     self$transformer <- nn_module_dict(list(
-     wte = nn_embedding(vocab_size, n_embd),
-     h = nn_sequential(!!!map(
-       1:n_layer,
-       \(x) nn_llama_layer(n_embd, n_inter, n_head, max_pos)
-     )),
-     ln_f = nn_llama_rmsnorm(n_embd)
+      wte = nn_embedding(vocab_size, n_embd),
+      h = nn_sequential(!!!map(
+        1:n_layer,
+        \(x) nn_llama_layer(n_embd, n_inter, n_head, max_pos, rmsnorm_eps, rope_base)
+      )),
+      ln_f = nn_llama_rmsnorm(n_embd, rmsnorm_eps)
     ))
     self$lm_head <- nn_linear(n_embd, vocab_size, bias = FALSE)
   },
@@ -167,9 +171,9 @@ nn_llama_model <- nn_module(
   }
 )
 
-#' LLAMA
+#' llama
 #'
-#' Initializes a LLAMA like model
+#' Initializes a llama like model
 #'
 #' @param vocab_size An integer indicating the size of the vocabulary or the number
 #'   of unique tokens in the input data.
@@ -180,6 +184,8 @@ nn_llama_model <- nn_module(
 #' @param n_layer An integer indicating the number of layers in the deep learning model.
 #' @param max_pos An integer specifying the maximum position encoding value or
 #'  the maximum sequence length.
+#' @param rmsnorm_eps The epsilon used by the rms normalization layers.
+#' @param rope_base The base period of the RoPE embeddings.
 #' @param identifier A string representing the identifier or name of the pre-trained
 #'  model in the Hugging Face model hub.
 #' @param revision A string specifying the revision or version of the pre-trained
@@ -187,11 +193,12 @@ nn_llama_model <- nn_module(
 #' @returns An initialized [torch::nn_module()].
 #' @export
 llama <- function(vocab_size=50432, n_embd=6144, n_inter = 11008, n_head=64,
-                  n_layer=44, max_pos=2048) {
-  nn_llama_model(vocab_size, n_embd, n_inter, n_head, n_layer, max_pos)
+                  n_layer=44, max_pos=2048, rmsnorm_eps = 1e-6, rope_base = 10000) {
+  nn_llama_model(vocab_size, n_embd, n_inter, n_head, n_layer, max_pos, rmsnorm_eps,
+                 rope_base)
 }
 
-#' @describeIn llama Initializes a LLAMA model using a configuration defined in HF Hub
+#' @describeIn llama Initializes a llama model using a configuration defined in HF Hub
 #' @export
 llama_from_config <- function(identifier, revision = "main") {
   path <- hfhub::hub_download(identifier, "config.json", revision = revision)
@@ -208,24 +215,20 @@ llama_from_config <- function(identifier, revision = "main") {
       i = "Currently only {.val silu} is supported."
     ))
 
-  if (config$rms_norm_eps != 1e-6)
-    cli::cli_abort(c(
-      x = "{.arg config$rms_norm_eps} must be 1e-6, got {.val {config$rms_norm_eps}}"
-    ))
-
   # remap HF config attributes to minhub configurations
-  vocab_size <- config$vocab_size
-  n_embd     <- config$hidden_size
-  n_inter    <- config$intermediate_size
-  n_head     <- config$num_attention_heads
-  n_layer    <- config$num_hidden_layers
-  max_pos    <- config$max_position_embeddings
+  vocab_size  <- config$vocab_size
+  n_embd      <- config$hidden_size
+  n_inter     <- config$intermediate_size
+  n_head      <- config$num_attention_heads
+  n_layer     <- config$num_hidden_layers
+  max_pos     <- config$max_position_embeddings
+  rmsnorm_eps <- config$rms_norm_eps # unlike most llama models, we also havve different values for this
+  rope_base   <- config$rope_theta %||% 10000 # unlike LLama, code llama models tune this
 
-
-  llama(vocab_size, n_embd, n_inter, n_head, n_layer, max_pos)
+  llama(vocab_size, n_embd, n_inter, n_head, n_layer, max_pos, rmsnorm_eps, rope_base)
 }
 
-#' @describeIn llama Initializes the LLAMA model and load pre-trained weights from HF hub.
+#' @describeIn llama Initializes the llama model and load pre-trained weights from HF hub.
 #' @export
 llama_from_pretrained <- function(identifier, revision = "main") {
   with_device(device="meta", {
@@ -233,6 +236,7 @@ llama_from_pretrained <- function(identifier, revision = "main") {
   })
   state_dict <- hf_state_dict(identifier, revision)
   state_dict <- llama_hf_weights_remap(state_dict)
+
   model$load_state_dict(state_dict, .refer_to_state_dict = TRUE)
   model
 }
