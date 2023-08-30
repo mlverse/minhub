@@ -4,7 +4,7 @@
 \alias{llama}
 \alias{llama_from_config}
 \alias{llama_from_pretrained}
-\title{LLAMA}
+\title{llama}
 \usage{
 llama(
   vocab_size = 50432,
@@ -12,7 +12,9 @@ llama(
   n_inter = 11008,
   n_head = 64,
   n_layer = 44,
-  max_pos = 2048
+  max_pos = 2048,
+  rmsnorm_eps = 1e-06,
+  rope_base = 10000
 )
 
 llama_from_config(identifier, revision = "main")
@@ -35,6 +37,10 @@ multi-head attention mechanism.}
 \item{max_pos}{An integer specifying the maximum position encoding value or
 the maximum sequence length.}
 
+\item{rmsnorm_eps}{The epsilon used by the rms normalization layers.}
+
+\item{rope_base}{The base period of the RoPE embeddings.}
+
 \item{identifier}{A string representing the identifier or name of the pre-trained
 model in the Hugging Face model hub.}
 
@@ -45,12 +51,12 @@ model in the Hugging Face model hub.}
 An initialized \code{\link[torch:nn_module]{torch::nn_module()}}.
 }
 \description{
-Initializes a LLAMA like model
+Initializes a llama like model
 }
 \section{Functions}{
 \itemize{
-\item \code{llama_from_config()}: Initializes a LLAMA model using a configuration defined in HF Hub
+\item \code{llama_from_config()}: Initializes a llama model using a configuration defined in HF Hub
 
-\item \code{llama_from_pretrained()}: Initializes the LLAMA model and load pre-trained weights from HF hub.
+\item \code{llama_from_pretrained()}: Initializes the llama model and load pre-trained weights from HF hub.
 
 }}
