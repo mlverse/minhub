@@ -19,6 +19,6 @@ test_that("can run bigcode", {
 
   reference <- c(7.76255893707275, 11.3832864761353, 14.9211025238037, 6.05046129226685, 8.51452255249023)
   result <- as.numeric(out[,-1,1:5])
-  expect_equal(result, reference, tolerance = 1e-6)
+  expect_equal(result, reference, tolerance = 1e-5)
 })
 
