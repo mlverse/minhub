@@ -28,6 +28,7 @@ minhub currently implements:
 - [SantaCoder: don't reach for the stars!](https://arxiv.org/abs/2301.03988): [🤗gpt_bigcode](https://huggingface.co/models?other=gpt_bigcode), [📄gptbigcode.R](./R/gptbigcode.R)
 - [Language Models are Unsupervised Multitask Learners](https://paperswithcode.com/method/gpt-2): [🤗gpt2](https://huggingface.co/models?other=gpt2), [📄gpt2.R](./R/gpt2.R)
 - [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971): [🤗llama](https://huggingface.co/models?other=llama), [📄llama.R](./R/llama.R)
+- [Llama 2: Open Foundation and Fine-Tuned Chat Models](https://arxiv.org/abs/2307.09288): [🤗llama 2](https://huggingface.co/models?other=llama-2), [📄llama.R](./R/llama.R)
 
 ## Installation
 
