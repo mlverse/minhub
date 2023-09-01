@@ -138,7 +138,7 @@ nn_gpt2_model <- nn_module(
   forward = function(x) {
     tok_emb <- self$transformer$wte(x) # token embeddings of shape (b, t, n_embd)
 
-    pos <- torch_arange(1, x$size(2))$to(dtype="long")$unsqueeze(1) # shape (1, t)
+    pos <- torch_arange(1, x$size(2), device=x$device)$to(dtype="long")$unsqueeze(1) # shape (1, t)
     pos_emb <- self$transformer$wpe(pos) # position embeddings of shape (1, t, n_embd)
 
     x <- self$transformer$drop(tok_emb + pos_emb)

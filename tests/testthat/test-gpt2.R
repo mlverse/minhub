@@ -59,3 +59,20 @@ test_that("lm_head$weight is tied to transformer$wte$weight", {
   expect_equal(as.numeric(torch_mean(wte)), as.numeric(torch_mean(lm_head)))
 })
 
+test_that("can execute gpt2 after moving to different device", {
+  skip_on_ci()
+  skip_if(!torch::backends_mps_is_available())
+
+  model <- gpt2(vocab_size = 1000)
+  model$to(device = "mps")
+
+  x <- torch_tensor(sample.int(100, size = 100), device = "mps")$view(c(1, -1))
+
+  expect_error({
+    with_no_grad({
+      out <- model(x)
+    })
+  }, regexp = NA)
+
+})
+
