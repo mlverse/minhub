@@ -1,0 +1,129 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: minhub 0.0.0.9000\n"
+"POT-Creation-Date: 2024-11-28 11:28+0100\n"
+"PO-Revision-Date: 2024-12-02 17:11+0100\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.5\n"
+
+#: gpt2.R:201
+msgid ""
+"{.arg config$model_type} must be {.val gpt2}, got {.val {config$model_type}}"
+msgstr ""
+"La valeur de {.arg config$model_type} doit être {.val gpt2}, or elle est à {."
+"val {config$model_type}}"
+
+#: gpt2.R:205
+msgid "{.arg config$layer_norm_eps} must be {.val 1e-5}."
+msgstr "{.arg config$layer_norm_eps} doit être à {.val 1e-5}."
+
+#: gpt2.R:209
+msgid "{.arg {names(pdrop)}} must be all equal, but got {pdrop}"
+msgstr "Les {.arg {names(pdrop)}} doivent être égaux, or ils sont à {pdrop}"
+
+#: gpt2.R:214
+msgid ""
+"{.arg initializer_range} must be {.val 0.02}, got {config$initializer_range}"
+msgstr ""
+"La valeur de {.arg initializer_range} doit être à {.val 0.02}, or elle est à "
+"{config$initializer_range}"
+
+#: gptbigcode.R:139
+msgid "{.arg config$model_type} must be {.val gpt_bigcode}."
+msgstr "{.arg config$model_type} doit être {.val gpt_bigcode}."
+
+#: gptbigcode.R:140
+msgid "Got {.val {config$model_type}}"
+msgstr "Or elle est à  {.val {config$model_type}}"
+
+#: gptbigcode.R:144
+msgid "Must use {.arg config$multi_query} but got {.val FALSE}"
+msgstr ""
+"Il faut utiliser {.arg config$multi_query}, or c'est actuellement {.val "
+"FALSE}"
+
+#: gptbigcode.R:149
+msgid "All dropout must be equal."
+msgstr "Tous les {.val dropout} doivent être égaux."
+
+#: gptbigcode.R:150
+msgid "Got {.val {names(dropouts)}} respectively {.val {dropouts}}"
+msgstr "Or {.val {names(dropouts)}} sont respectivement à  {.val {dropouts}}"
+
+#: gptbigcode.R:158 gptneox.R:206
+msgid ""
+"{.arg config$layer_norm_eps} must be 1e-5, got {.val {config$layer_norm_eps}}"
+msgstr ""
+"La valeur de {.arg config$layer_norm_eps} doit être {.val 1e-5}, or elle est "
+"à {.val {config$layer_norm_eps}}"
+
+#: gptneox.R:182
+msgid ""
+"{.arg config$model_type} must be {.val gpt_neox}, got {.val "
+"{config$model_type}}"
+msgstr ""
+"{.arg config$model_type} doit être {.val gpt_neox}, or elle est à {.val "
+"{config$model_type}}"
+
+#: gptneox.R:188
+msgid "Non parallel residual is not supported."
+msgstr "Les résidus non-parallèles ne sont pas pris en compte."
+
+#: gptneox.R:189
+msgid "{.arg config$use_parallel_residual} is {.val FALSE}"
+msgstr "{.arg config$use_parallel_residual} est {.val FALSE}"
+
+#: gptneox.R:194 llama.R:214
+msgid "Unsupported {.arg config$hidden_act}: {.val {config$hidden_act}}"
+msgstr "{.arg config$hidden_act} ne peut pas être {.val {config$hidden_act}}"
+
+#: gptneox.R:195
+msgid "Currently only {.val gelu} is supported."
+msgstr "Actuellement seul {.val gelu} est pris en compte."
+
+#: gptneox.R:200
+msgid "{.arg config$intermediate_size} must be 4*{.arg config$hidden_size}"
+msgstr ""
+"{.arg config$intermediate_size} doit être de  4*{.arg config$hidden_size}"
+
+#: gptneox.R:201
+msgid "Got {.val {config$intermediate_size}} and {.val {config$hidden_size}}"
+msgstr ""
+"Or nous avons respectivement {.val {config$intermediate_size}} et {.val "
+"{config$hidden_size}}"
+
+#: llama.R:209
+msgid ""
+"{.arg config$model_type} must be {.val llama}, got {.val {config$model_type}}"
+msgstr ""
+"{.arg config$model_type} doit être {.val llama}, or nous avons {.val "
+"{config$model_type}}"
+
+#: llama.R:215
+msgid "Currently only {.val silu} is supported."
+msgstr "Actuellement seul {.val silu} est pris en compte."
+
+#: weights.R:33
+msgid ""
+"Error downloading weights from {.val {c(WEIGHTS_NAME(), "
+"WEIGHTS_INDEX_NAME())}}"
+msgstr ""
+"Problème de téléchargement des points depuis {.val {c(WEIGHTS_NAME(), "
+"WEIGHTS_INDEX_NAME())}}"
+
+#: weights.R:34
+msgid ""
+"Traceback below shows the error when trying to download {.val "
+"{WEIGHTS_NAME()}}"
+msgstr ""
+"Le log suivant détaille l'erreur lors de la tentative de téléchargement de {."
+"val {WEIGHTS_NAME()}}"
+
+#: weights.R:73
+msgid "No safetensors files found."
+msgstr "Aucun fichier safetensors trouvé."
