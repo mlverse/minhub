@@ -76,3 +76,13 @@ test_that("can execute gpt2 after moving to different device", {
 
 })
 
+test_that("wrong identifier raise an error", {
+  identifier <- "Qwen/Qwen2.5-Coder-0.5B"
+  revision <- "main"
+  expect_error(
+    model <- gpt2_from_pretrained(identifier, revision)    ,
+    regexp = " must be \"gpt2\", got \"qwen2\"")
+
+})
+
+
