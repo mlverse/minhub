@@ -29,9 +29,10 @@ hf_state_dict <- function(identifier, revision = "main") {
     index_path <- tryCatch({
       hub_download(identifier, WEIGHTS_INDEX_NAME(), revision = revision)
     }, error = function(e) {
-      cli::cli_abort(c(
+      cli::cli_abort(gettext(
         x = "Error downloading weights from {.val {c(WEIGHTS_NAME(), WEIGHTS_INDEX_NAME())}}",
-        i = "Traceback below shows the error when trying to download {.val {WEIGHTS_NAME()}}"
+        i = "Traceback below shows the error when trying to download {.val {WEIGHTS_NAME()}}",
+        domain = "R-minhub"
       ), parent = err)
     })
 
@@ -70,7 +71,9 @@ state_dict_safetensors <- function(identifier, revision) {
   )
 
   if (inherits(index_path, "try-error")) {
-    cli::cli_abort("No safetensors files found.")
+    cli::cli_abort(gettext(
+      "No safetensors files found.",
+      domain = "R-minhub"))
   }
 
   index <- jsonlite::fromJSON(index_path)$weight_map %>%

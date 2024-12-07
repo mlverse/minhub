@@ -197,21 +197,25 @@ gpt2_from_config <- function(identifier, revision = "main") {
   config <- jsonlite::fromJSON(path)
 
   if (config$model_type != "gpt2")
-    cli::cli_abort(c(
-      "{.arg config$model_type} must be {.val gpt2}, got {.val {config$model_type}}"
+    cli::cli_abort(gettext(
+      "{.arg config$model_type} must be {.val gpt2}, got {.val {config$model_type}}",
+      domain = "R-minhub"
     ))
 
   if (config$layer_norm_eps != 1e-5)
-    cli::cli_abort("{.arg config$layer_norm_eps} must be {.val 1e-5}.")
+    cli::cli_abort(gettext("{.arg config$layer_norm_eps} must be {.val 1e-5}.",
+                           domain = "R-minhub"))
 
   pdrop <- unlist(config[c("resid_pdrop", "embd_pdrop", "attn_pdrop")])
   if (length(unique(pdrop)) != 1)
-    cli::cli_abort("{.arg {names(pdrop)}} must be all equal, but got {pdrop}")
+    cli::cli_abort(gettext("{.arg {names(pdrop)}} must be all equal, but got {pdrop}",
+                           domain = "R-minhub"))
   else
     pdrop <- unique(pdrop)
 
   if (config$initializer_range != 0.02)
-    cli::cli_abort("{.arg initializer_range} must be {.val 0.02}, got {config$initializer_range}")
+    cli::cli_abort(gettext("{.arg initializer_range} must be {.val 0.02}, got {config$initializer_range}",
+                   domain = "R-minhub"))
 
   vocab_size <- config$vocab_size
   n_embd     <- config$n_embd
