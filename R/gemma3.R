@@ -1,6 +1,7 @@
 # References:
 # - https://huggingface.co/docs/transformers/model_doc/gemma3
 # - https://github.com/huggingface/transformers/blob/main/src/transformers/models/gemma3/modeling_gemma3.py
+# - https://github.com/rasbt/LLMs-from-scratch/blob/main/ch05/12_gemma3/standalone-gemma3.ipynb
 
 #' @noRd
 #' @importFrom dotty .
