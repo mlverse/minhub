@@ -60,7 +60,7 @@ state_dict_safetensors <- function(identifier, revision) {
   )
 
   if (!inherits(weights_path, "try-error")) {
-    return(safetensors::safe_load_file(weights_path))
+    return(safetensors::safe_load_file(weights_path, framework = "torch"))
   }
 
   # now try the index
@@ -81,5 +81,5 @@ state_dict_safetensors <- function(identifier, revision) {
     hub_download(identifier, fname, revision = revision)
   }))
 
-  do.call("c", lapply(index, safetensors::safe_load_file))
+  do.call("c", lapply(index, \(x) safetensors::safe_load_file(x, framework = "torch")))
 }
