@@ -4,12 +4,14 @@
 \alias{hf_state_dict}
 \title{Loads, and possibly downloads HF Hub models}
 \usage{
-hf_state_dict(identifier, revision = "main")
+hf_state_dict(identifier, revision = "main", path_prefix = "")
 }
 \arguments{
 \item{identifier}{Repository id from the model}
 
 \item{revision}{Revision to download from (eg tags, branches or commit hashes)}
+
+\item{path_prefix}{Optional subdirectory prefix for weights (e.g., "original/")}
 }
 \description{
 Loads, and possibly downloads HF Hub models

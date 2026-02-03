@@ -29,6 +29,7 @@ minhub currently implements:
 - [Language Models are Unsupervised Multitask Learners](https://paperswithcode.com/method/gpt-2): [🤗gpt2](https://huggingface.co/models?other=gpt2), [📄gpt2.R](./R/gpt2.R)
 - [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971): [🤗llama](https://huggingface.co/models?other=llama), [📄llama.R](./R/llama.R)
 - [Llama 2: Open Foundation and Fine-Tuned Chat Models](https://arxiv.org/abs/2307.09288): [🤗llama 2](https://huggingface.co/models?other=llama-2), [📄llama.R](./R/llama.R)
+- [GPT-OSS reference architecture](https://github.com/openai/gpt-oss): [🤗openai/gpt-oss-20b](https://huggingface.co/openai/gpt-oss-20b), [📄gptoss.R](./R/gptoss.R)
 
 ## Installation
 
@@ -44,4 +45,3 @@ Note:
 - [tok](https://github.com/mlverse/tok) requires a Rust installation. See installation instructions in its repository.
 
 ## Examples
-

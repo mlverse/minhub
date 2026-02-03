@@ -1,11 +1,12 @@
 #' Loads, and possibly downloads HF Hub models
 #' @param identifier Repository id from the model
 #' @param revision Revision to download from (eg tags, branches or commit hashes)
+#' @param path_prefix Optional subdirectory prefix for weights (e.g., "original/")
 #' @importFrom hfhub hub_download WEIGHTS_NAME WEIGHTS_INDEX_NAME
 #' @export
-hf_state_dict <- function(identifier, revision = "main") {
+hf_state_dict <- function(identifier, revision = "main", path_prefix = "") {
 
-  state_dict <- try(state_dict_safetensors(identifier, revision))
+  state_dict <- try(state_dict_safetensors(identifier, revision, path_prefix))
   if (!inherits(state_dict, "try-error")) {
     return(state_dict)
   }
@@ -14,7 +15,7 @@ hf_state_dict <- function(identifier, revision = "main") {
   # try downloading the weights from the pytorch_model.bin path and save error
   # if any happened
   weights_path <- tryCatch({
-    hub_download(identifier, WEIGHTS_NAME(), revision = revision)
+    hub_download(identifier, paste0(path_prefix, WEIGHTS_NAME()), revision = revision)
   }, error = function(err) {
     err <<- err
   })
@@ -27,7 +28,7 @@ hf_state_dict <- function(identifier, revision = "main") {
     # in this case we want to raise an error showing the two urls that we tried.
     # we also prefer showing the stack trace from the first path.
     index_path <- tryCatch({
-      hub_download(identifier, WEIGHTS_INDEX_NAME(), revision = revision)
+      hub_download(identifier, paste0(path_prefix, WEIGHTS_INDEX_NAME()), revision = revision)
     }, error = function(e) {
       cli::cli_abort(c(
         x = "Error downloading weights from {.val {c(WEIGHTS_NAME(), WEIGHTS_INDEX_NAME())}}",
@@ -37,7 +38,7 @@ hf_state_dict <- function(identifier, revision = "main") {
 
     filenames <- unique(unlist(jsonlite::fromJSON(index_path)$weight_map))
     weights_path <- sapply(filenames, function(fname) {
-      hub_download(identifier, fname, revision = revision)
+      hub_download(identifier, paste0(path_prefix, fname), revision = revision)
     })
     names(weights_path) <- NULL
   }
@@ -52,10 +53,10 @@ SAFETENSORS_INDEX_NAME <- function() {
   "model.safetensors.index.json"
 }
 
-state_dict_safetensors <- function(identifier, revision) {
+state_dict_safetensors <- function(identifier, revision, path_prefix = "") {
   # first try safetensors file
   weights_path <- try(
-    hub_download(identifier, SAFETENSORS_NAME(), revision=revision),
+    hub_download(identifier, paste0(path_prefix, SAFETENSORS_NAME()), revision=revision),
     silent = TRUE
   )
 
@@ -65,7 +66,7 @@ state_dict_safetensors <- function(identifier, revision) {
 
   # now try the index
   index_path <- try(
-    hub_download(identifier, SAFETENSORS_INDEX_NAME(), revision=revision),
+    hub_download(identifier, paste0(path_prefix, SAFETENSORS_INDEX_NAME()), revision=revision),
     silent = TRUE
   )
 
@@ -78,7 +79,7 @@ state_dict_safetensors <- function(identifier, revision) {
     unique()
 
   index <- unname(sapply(index, function(fname) {
-    hub_download(identifier, fname, revision = revision)
+    hub_download(identifier, paste0(path_prefix, fname), revision = revision)
   }))
 
   do.call("c", lapply(index, \(x) safetensors::safe_load_file(x, framework = "torch")))
