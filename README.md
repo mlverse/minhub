@@ -30,6 +30,9 @@ minhub currently implements:
 - [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971): [🤗llama](https://huggingface.co/models?other=llama), [📄llama.R](./R/llama.R)
 - [Llama 2: Open Foundation and Fine-Tuned Chat Models](https://arxiv.org/abs/2307.09288): [🤗llama 2](https://huggingface.co/models?other=llama-2), [📄llama.R](./R/llama.R)
 - [GPT-OSS reference architecture](https://github.com/openai/gpt-oss): [🤗openai/gpt-oss-20b](https://huggingface.co/openai/gpt-oss-20b), [📄gptoss.R](./R/gptoss.R)
+- [Gemma 3](https://blog.google/technology/developers/gemma-3/): [🤗gemma3](https://huggingface.co/models?other=gemma3), [📄gemma3.R](./R/gemma3.R)
+- [Ministral/Mistral](https://mistral.ai/news/ministraux): [🤗ministral](https://huggingface.co/models?other=ministral3), [📄ministral.R](./R/ministral.R)
+- [Qwen3.5](https://qwenlm.github.io/blog/qwen3.5/): [🤗qwen3_5](https://huggingface.co/Qwen/Qwen3.5-0.8B), [📄qwen3.R](./R/qwen3.R)
 
 ## Installation
 
