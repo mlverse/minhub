@@ -3,7 +3,8 @@ Title: Minimal Deep Learning Model Implementations
 Version: 0.0.0.9000
 Authors@R: c(
     person("Daniel", "Falbel", , "daniel@posit.co", role = c("aut", "cre")),
-    person(family = "Posit", role = c("cph"))
+    person(family = "Posit", role = c("cph")),
+    person("Christophe", "Regouby", role = c("ctb"))
     )
 Description: A collection of minimal implementations of deep learning
     models. Clean and readable code prioritizing simplicity and understanding 

@@ -205,14 +205,16 @@ llama_from_config <- function(identifier, revision = "main") {
   config <- jsonlite::fromJSON(path)
 
   if (config$model_type != "llama")
-    cli::cli_abort(c(
-      "{.arg config$model_type} must be {.val llama}, got {.val {config$model_type}}"
+    cli::cli_abort(gettext(
+      "{.arg config$model_type} must be {.val llama}, got {.val {config$model_type}}",
+      domain = "R-minhub"
     ))
 
   if (config$hidden_act != "silu")
-    cli::cli_abort(c(
+    cli::cli_abort(gettext(
       x = "Unsupported {.arg config$hidden_act}: {.val {config$hidden_act}}",
-      i = "Currently only {.val silu} is supported."
+      i = "Currently only {.val silu} is supported.",
+      domain = "R-minhub"
     ))
 
   # remap HF config attributes to minhub configurations

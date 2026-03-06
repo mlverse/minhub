@@ -1,0 +1,109 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: minhub 0.0.0.9000\n"
+"POT-Creation-Date: 2024-11-28 11:28+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: gpt2.R:201
+msgid ""
+"{.arg config$model_type} must be {.val gpt2}, got {.val {config$model_type}}"
+msgstr ""
+
+#: gpt2.R:205
+msgid "{.arg config$layer_norm_eps} must be {.val 1e-5}."
+msgstr ""
+
+#: gpt2.R:209
+msgid "{.arg {names(pdrop)}} must be all equal, but got {pdrop}"
+msgstr ""
+
+#: gpt2.R:214
+msgid ""
+"{.arg initializer_range} must be {.val 0.02}, got {config$initializer_range}"
+msgstr ""
+
+#: gptbigcode.R:139
+msgid "{.arg config$model_type} must be {.val gpt_bigcode}."
+msgstr ""
+
+#: gptbigcode.R:140
+msgid "Got {.val {config$model_type}}"
+msgstr ""
+
+#: gptbigcode.R:144
+msgid "Must use {.arg config$multi_query} but got {.val FALSE}"
+msgstr ""
+
+#: gptbigcode.R:149
+msgid "All dropout must be equal."
+msgstr ""
+
+#: gptbigcode.R:150
+msgid "Got {.val {names(dropouts)}} respectively {.val {dropouts}}"
+msgstr ""
+
+#: gptbigcode.R:158 gptneox.R:206
+msgid ""
+"{.arg config$layer_norm_eps} must be 1e-5, got {.val {config$layer_norm_eps}}"
+msgstr ""
+
+#: gptneox.R:182
+msgid ""
+"{.arg config$model_type} must be {.val gpt_neox}, got {.val "
+"{config$model_type}}"
+msgstr ""
+
+#: gptneox.R:188
+msgid "Non parallel residual is not supported."
+msgstr ""
+
+#: gptneox.R:189
+msgid "{.arg config$use_parallel_residual} is {.val FALSE}"
+msgstr ""
+
+#: gptneox.R:194 llama.R:214
+msgid "Unsupported {.arg config$hidden_act}: {.val {config$hidden_act}}"
+msgstr ""
+
+#: gptneox.R:195
+msgid "Currently only {.val gelu} is supported."
+msgstr ""
+
+#: gptneox.R:200
+msgid "{.arg config$intermediate_size} must be 4*{.arg config$hidden_size}"
+msgstr ""
+
+#: gptneox.R:201
+msgid "Got {.val {config$intermediate_size}} and {.val {config$hidden_size}}"
+msgstr ""
+
+#: llama.R:209
+msgid ""
+"{.arg config$model_type} must be {.val llama}, got {.val {config$model_type}}"
+msgstr ""
+
+#: llama.R:215
+msgid "Currently only {.val silu} is supported."
+msgstr ""
+
+#: weights.R:33
+msgid ""
+"Error downloading weights from {.val {c(WEIGHTS_NAME(), "
+"WEIGHTS_INDEX_NAME())}}"
+msgstr ""
+
+#: weights.R:34
+msgid ""
+"Traceback below shows the error when trying to download {.val "
+"{WEIGHTS_NAME()}}"
+msgstr ""
+
+#: weights.R:73
+msgid "No safetensors files found."
+msgstr ""

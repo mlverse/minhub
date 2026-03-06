@@ -93,7 +93,7 @@ nn_gptneox_attention <- nn_module(
     att <- torch_matmul(q, k$transpose(-2, -1)) * (1 / sqrt(k$size(-1)))
     att <- att$masked_fill(self$bias[,,1:t, 1:t] == 0, self$masked_bias)
     att <- nnf_softmax(att, dim=-1)$to(dtype = v$dtype)
-    
+
     y <- torch_matmul(att, v)$transpose(2, 3)$contiguous()$view(c(b, t, h))
     self$c_proj(y)
   }
@@ -178,32 +178,37 @@ gptneox_from_config <- function(identifier, revision = "main") {
   config <- jsonlite::fromJSON(path)
 
   if (config$model_type != "gpt_neox")
-    cli::cli_abort(c(
-      "{.arg config$model_type} must be {.val gpt_neox}, got {.val {config$model_type}}"
+    cli::cli_abort(gettext(
+      "{.arg config$model_type} must be {.val gpt_neox}, got {.val {config$model_type}}",
+      domain = "R-minhub"
     ))
 
   # parallel residual is not supported
   if (!config$use_parallel_residual)
-    cli::cli_abort(c(
+    cli::cli_abort(gettext(
       x = "Non parallel residual is not supported.",
-      i = "{.arg config$use_parallel_residual} is {.val FALSE}"
+      i = "{.arg config$use_parallel_residual} is {.val FALSE}",
+      domain = "R-minhub"
     ))
 
   if (config$hidden_act != "gelu")
-    cli::cli_abort(c(
+    cli::cli_abort(gettext(
       x = "Unsupported {.arg config$hidden_act}: {.val {config$hidden_act}}",
-      i = "Currently only {.val gelu} is supported."
+      i = "Currently only {.val gelu} is supported.",
+      domain = "R-minhub"
     ))
 
   if ((config$intermediate_size / config$hidden_size) != 4)
-    cli::cli_abort(c(
+    cli::cli_abort(gettext(
       x = "{.arg config$intermediate_size} must be 4*{.arg config$hidden_size}",
-      i = "Got {.val {config$intermediate_size}} and {.val {config$hidden_size}}"
+      i = "Got {.val {config$intermediate_size}} and {.val {config$hidden_size}}",
+      domain = "R-minhub"
     ))
 
   if (config$layer_norm_eps != 1e-5)
-    cli::cli_abort(c(
-      x = "{.arg config$layer_norm_eps} must be 1e-5, got {.val {config$layer_norm_eps}}"
+    cli::cli_abort(gettext(
+      x = "{.arg config$layer_norm_eps} must be 1e-5, got {.val {config$layer_norm_eps}}",
+      domain = "R-minhub"
     ))
 
   # remap HF config attributes to minhub configurations
