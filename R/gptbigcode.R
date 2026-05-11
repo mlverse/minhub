@@ -135,27 +135,31 @@ gptbigcode_from_config <- function(identifier, revision = "main") {
   config <- jsonlite::fromJSON(path)
 
   if (config$model_type != "gpt_bigcode")
-    cli::cli_abort(c(
+    cli::cli_abort(gettext(
       x = "{.arg config$model_type} must be {.val gpt_bigcode}.",
-      i = "Got {.val {config$model_type}}"
+      i = "Got {.val {config$model_type}}",
+      domain = "R-minhub"
     ))
 
   if (!config$multi_query)
-    cli::cli_abort("Must use {.arg config$multi_query} but got {.val FALSE}")
+    cli::cli_abort(gettext("Must use {.arg config$multi_query} but got {.val FALSE}",
+                   domain = "R-minhub"))
 
   dropouts <- config[c("attn_pdrop", "resid_pdrop", "embd_pdrop")]
   if (length(unique(dropouts)) != 1)
-    cli::cli_abort(c(
+    cli::cli_abort(gettext(
       x = "All dropout must be equal.",
-      i = "Got {.val {names(dropouts)}} respectively {.val {dropouts}}"
+      i = "Got {.val {names(dropouts)}} respectively {.val {dropouts}}",
+      domain = "R-minhub"
     ))
   else
     pdrop <- unique(dropouts)
 
 
   if (config$layer_norm_eps != 1e-5)
-    cli::cli_abort(c(
-      x = "{.arg config$layer_norm_eps} must be 1e-5, got {.val {config$layer_norm_eps}}"
+    cli::cli_abort(gettext(
+      x = "{.arg config$layer_norm_eps} must be 1e-5, got {.val {config$layer_norm_eps}}",
+      domain = "R-minhub"
     ))
 
   # remap HF config attributes to minhub configurations
